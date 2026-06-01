@@ -1,0 +1,33 @@
+lcd "d:\Projects\CGCPT-Server\web\dist"
+cd /opt/CGCPT/root/CGCPT
+binary
+put index.html
+put favicon.svg
+put icons.svg
+cd assets
+lcd assets
+put AdvancedSearch-Dps3JHph.js
+put ClassificationBrowser-DIGYJv1x.js
+put CrystalViewer-9teT14lV.js
+put Dashboard-CnoXDIbv.js
+put Favorites-DTQKnpP2.js
+put MaterialDetail-DeP89e7j.js
+put MaterialsBrowser-BVMVJoN5.js
+put MaterialsCompare-D9vPyRIN.js
+put NotFound-BxsXy1GR.js
+put PrototypeDetail-D5nPVaho.js
+put PrototypesBrowser-8Ll27kj0.js
+put RecentBrowse-DvwR_S7M.js
+put SearchResults-cTJA-OCm.js
+put StackingRecognizer-C6DBcR0o.js
+put StructureGenerator-B-KJaKgu.js
+put TopologyVerify-P-ccEldR.js
+put client-CQo67BwU.js
+put index-C868vSOh.js
+put index-UP4-tA0A.css
+put rolldown-runtime-S-ySWqyJ.js
+put vendor-lucide-BBcrmKmb.js
+put vendor-react-BNPw1I5t.js
+put vendor-recharts-IKSEBQ13.js
+put vendor-three-B9nyAaMl.js
+bye

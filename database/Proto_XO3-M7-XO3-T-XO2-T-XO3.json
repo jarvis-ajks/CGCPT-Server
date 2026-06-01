@@ -1,0 +1,40 @@
+{
+    "topology_theory": {
+        "prototype_id": "Glaserite-Trigonal",
+        "layer_modes": [
+            "XO3",
+            "M7",
+            "XO3",
+            "XO2"
+        ],
+        "stack_labels": [
+            "A",
+            "B",
+            "C"
+        ],
+        "reference_grid": "M7_base"
+    },
+    "prototype_crystallography": {
+        "ideal_space_group": "P-3m1",
+        "space_group_number": 164,
+        "crystal_system": "Trigonal",
+        "is_neutral": true,
+        "wyckoff_signature": {
+            "K": "1a, 2d",
+            "Na": "1b",
+            "S": "2d",
+            "O": "2d, 6i"
+        }
+    },
+    "real_compounds": [
+        {
+            "formula": "K3Na(SO4)2",
+            "mineral_name": "Aphthitalite",
+            "source_id": "mp-4850",
+            "rmsd_to_ideal": 0.0,
+            "properties": {
+                "is_luminescent_host": true
+            }
+        }
+    ]
+}

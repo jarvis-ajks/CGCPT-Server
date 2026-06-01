@@ -1,0 +1,55 @@
+{
+    "topology_theory": {
+        "prototype_id": "XO-T-XO3-M7-XO3-T-XO-T-XO3-M7-XO3-T-XO3族系 (X/XBO3/BO3/XO3/XB3O6)",
+        "input_main_shifts": [
+            "A",
+            "B",
+            "C",
+            "A",
+            "C",
+            "B"
+        ],
+        "expanded_modes": [
+            "XO",
+            "T",
+            "XO3",
+            "M7",
+            "XO3",
+            "T",
+            "XO",
+            "T",
+            "XO3",
+            "M7",
+            "XO3",
+            "T"
+        ],
+        "expanded_shifts": [
+            "A",
+            "C",
+            "B",
+            "A",
+            "C",
+            "B",
+            "A",
+            "B",
+            "C",
+            "A",
+            "B",
+            "C"
+        ],
+        "reference_grid": "XO3-XO族系"
+    },
+    "prototype_crystallography": {
+        "ideal_space_group": "P6_3/mmc",
+        "space_group_number": 194,
+        "crystal_system": "hexagonal",
+        "is_neutral": true,
+        "wyckoff_signature": {
+            "K": "b, f",
+            "O": "d, k",
+            "Si": "f",
+            "Sc": "a"
+        }
+    },
+    "real_compounds": []
+}

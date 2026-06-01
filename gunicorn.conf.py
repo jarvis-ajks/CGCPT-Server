@@ -1,0 +1,14 @@
+bind = "0.0.0.0:5001"
+workers = 1
+worker_class = "gthread"
+threads = 2
+timeout = 300
+keepalive = 5
+preload_app = False
+max_requests = 500
+max_requests_jitter = 50
+graceful_timeout = 30
+worker_tmp_dir = "/dev/shm"
+loglevel = "info"
+accesslog = "-"
+errorlog = "-"
