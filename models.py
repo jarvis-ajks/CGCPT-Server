@@ -2,8 +2,9 @@ import os
 import json
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional, Generator, Any
 
 from sqlalchemy import (
     create_engine, Column, String, Integer, Float, Text, Boolean,
@@ -20,6 +21,7 @@ engine = create_engine(
     max_overflow=10,
     pool_recycle=3600,
     pool_pre_ping=True,
+    pool_timeout=30,
     echo=False,
 )
 
@@ -27,7 +29,11 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
+    """Yield a database session and ensure it is closed after use.
+
+    Intended as a FastAPI dependency injection generator.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -35,24 +41,31 @@ def get_db():
         db.close()
 
 
-def init_db():
+def init_db() -> None:
+    """Create all database tables that do not yet exist."""
     Base.metadata.create_all(bind=engine)
 
 
 class Prototype(Base):
+    """Crystal structure prototype model.
+
+    Represents a unique topological arrangement of layer modes
+    in a perovskite-type crystal structure.
+    """
+
     __tablename__ = "prototypes"
 
-    id = Column(String(128), primary_key=True)
-    prototype_id = Column(String(128), index=True)
-    expanded_modes = Column(JSON)
-    reference_grid = Column(String(64))
-    ideal_space_group = Column(String(64))
-    space_group_number = Column(Integer)
-    crystal_system = Column(String(32))
-    is_neutral = Column(Boolean)
-    topology_data = Column(JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: str = Column(String(128), primary_key=True)
+    prototype_id: Optional[str] = Column(String(128), index=True)
+    expanded_modes: Optional[list] = Column(JSON)
+    reference_grid: Optional[str] = Column(String(64))
+    ideal_space_group: Optional[str] = Column(String(64))
+    space_group_number: Optional[int] = Column(Integer)
+    crystal_system: Optional[str] = Column(String(32))
+    is_neutral: Optional[bool] = Column(Boolean)
+    topology_data: Optional[dict] = Column(JSON)
+    created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     materials = relationship("Material", back_populates="prototype")
 
@@ -60,29 +73,38 @@ class Prototype(Base):
         Index("ix_proto_crystal_system", "crystal_system"),
     )
 
+    def __repr__(self) -> str:
+        return f"<Prototype(id={self.id!r}, space_group={self.ideal_space_group!r})>"
+
 
 class Material(Base):
+    """Crystal material model.
+
+    Represents a specific material instance with crystallographic
+    data and its associated prototype topology.
+    """
+
     __tablename__ = "materials"
 
-    id = Column(String(256), primary_key=True)
-    formula = Column(String(128), index=True)
-    space_group = Column(String(64), index=True)
-    topology_id = Column(String(128), ForeignKey("prototypes.id"), index=True)
-    elements = Column(JSON)
-    lattice_a = Column(Float)
-    lattice_b = Column(Float)
-    lattice_c = Column(Float)
-    lattice_alpha = Column(Float)
-    lattice_beta = Column(Float)
-    lattice_gamma = Column(Float)
-    n_atoms = Column(Integer)
-    is_verified = Column(Boolean, default=False)
-    source = Column(String(32), default="raw")
-    cif_path = Column(String(512))
-    cif_content = Column(Text, nullable=True)
-    metadata_json = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: str = Column(String(256), primary_key=True)
+    formula: Optional[str] = Column(String(128), index=True)
+    space_group: Optional[str] = Column(String(64), index=True)
+    topology_id: Optional[str] = Column(String(128), ForeignKey("prototypes.id"), index=True)
+    elements: Optional[list] = Column(JSON)
+    lattice_a: Optional[float] = Column(Float)
+    lattice_b: Optional[float] = Column(Float)
+    lattice_c: Optional[float] = Column(Float)
+    lattice_alpha: Optional[float] = Column(Float)
+    lattice_beta: Optional[float] = Column(Float)
+    lattice_gamma: Optional[float] = Column(Float)
+    n_atoms: Optional[int] = Column(Integer)
+    is_verified: bool = Column(Boolean, default=False)
+    source: str = Column(String(32), default="raw")
+    cif_path: Optional[str] = Column(String(512))
+    cif_content: Optional[str] = Column(Text, nullable=True)
+    metadata_json: Optional[dict] = Column(JSON, nullable=True)
+    created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     prototype = relationship("Prototype", back_populates="materials")
 
@@ -91,46 +113,64 @@ class Material(Base):
         Index("ix_mat_verified", "is_verified"),
     )
 
+    def __repr__(self) -> str:
+        return f"<Material(id={self.id!r}, formula={self.formula!r}, space_group={self.space_group!r})>"
+
 
 class Algorithm(Base):
+    """Algorithm model.
+
+    Stores metadata about a prediction or analysis algorithm,
+    including its entry point, schemas, and configuration.
+    """
+
     __tablename__ = "algorithms"
 
-    id = Column(String(128), primary_key=True)
-    name = Column(String(128), nullable=False)
-    description = Column(Text)
-    version = Column(String(32), default="1.0.0")
-    algorithm_type = Column(String(32), index=True)
-    entry_point = Column(String(256), nullable=False)
-    input_schema = Column(JSON)
-    output_schema = Column(JSON)
-    config_schema = Column(JSON, nullable=True)
-    default_config = Column(JSON, nullable=True)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: str = Column(String(128), primary_key=True)
+    name: str = Column(String(128), nullable=False)
+    description: Optional[str] = Column(Text)
+    version: str = Column(String(32), default="1.0.0")
+    algorithm_type: Optional[str] = Column(String(32), index=True)
+    entry_point: str = Column(String(256), nullable=False)
+    input_schema: Optional[dict] = Column(JSON)
+    output_schema: Optional[dict] = Column(JSON)
+    config_schema: Optional[dict] = Column(JSON, nullable=True)
+    default_config: Optional[dict] = Column(JSON, nullable=True)
+    is_active: bool = Column(Boolean, default=True)
+    created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     tasks = relationship("Task", back_populates="algorithm")
 
+    def __repr__(self) -> str:
+        return f"<Algorithm(id={self.id!r}, name={self.name!r})>"
+
 
 class Task(Base):
+    """Task model.
+
+    Tracks the execution state of an algorithm run, including
+    status, progress, input/output data, and timing information.
+    """
+
     __tablename__ = "tasks"
 
-    id = Column(String(128), primary_key=True)
-    algorithm_id = Column(String(128), ForeignKey("algorithms.id"), index=True)
-    status = Column(
+    id: str = Column(String(128), primary_key=True)
+    algorithm_id: Optional[str] = Column(String(128), ForeignKey("algorithms.id"), index=True)
+    status: str = Column(
         SAEnum("pending", "running", "completed", "failed", "cancelled", name="task_status"),
         default="pending", index=True
     )
-    input_data = Column(JSON)
-    output_data = Column(JSON, nullable=True)
-    error_message = Column(Text, nullable=True)
-    progress = Column(Float, default=0.0)
-    progress_message = Column(String(512), nullable=True)
-    celery_task_id = Column(String(256), nullable=True, index=True)
-    created_by = Column(String(64), default="system")
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    input_data: Optional[dict] = Column(JSON)
+    output_data: Optional[dict] = Column(JSON, nullable=True)
+    error_message: Optional[str] = Column(Text, nullable=True)
+    progress: float = Column(Float, default=0.0)
+    progress_message: Optional[str] = Column(String(512), nullable=True)
+    celery_task_id: Optional[str] = Column(String(256), nullable=True, index=True)
+    created_by: str = Column(String(64), default="system")
+    started_at: Optional[datetime] = Column(DateTime, nullable=True)
+    completed_at: Optional[datetime] = Column(DateTime, nullable=True)
+    created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     algorithm = relationship("Algorithm", back_populates="tasks")
 
@@ -138,29 +178,56 @@ class Task(Base):
         Index("ix_task_status_created", "status", "created_at"),
     )
 
+    def __repr__(self) -> str:
+        return f"<Task(id={self.id!r}, status={self.status!r})>"
+
 
 class ModelArtifact(Base):
+    """Model artifact model.
+
+    Stores metadata about a trained ML model file, including
+    its type, file path, evaluation metrics, and feature keys.
+    """
+
     __tablename__ = "model_artifacts"
 
-    id = Column(String(128), primary_key=True)
-    algorithm_id = Column(String(128), ForeignKey("algorithms.id"), index=True)
-    task_id = Column(String(128), ForeignKey("tasks.id"), nullable=True)
-    name = Column(String(128), nullable=False)
-    model_type = Column(String(32))
-    file_path = Column(String(512))
-    metrics = Column(JSON, nullable=True)
-    feature_keys = Column(JSON, nullable=True)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: str = Column(String(128), primary_key=True)
+    algorithm_id: Optional[str] = Column(String(128), ForeignKey("algorithms.id"), index=True)
+    task_id: Optional[str] = Column(String(128), ForeignKey("tasks.id"), nullable=True)
+    name: str = Column(String(128), nullable=False)
+    model_type: Optional[str] = Column(String(32))
+    file_path: Optional[str] = Column(String(512))
+    metrics: Optional[dict] = Column(JSON, nullable=True)
+    feature_keys: Optional[list] = Column(JSON, nullable=True)
+    is_active: bool = Column(Boolean, default=True)
+    created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self) -> str:
+        return f"<ModelArtifact(id={self.id!r}, name={self.name!r})>"
 
 
-def migrate_from_filesystem(db: Session, database_dir: str = None):
+def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> dict[str, Any]:
+    """Migrate prototype and material data from the filesystem into the database.
+
+    Args:
+        db: Active SQLAlchemy session.
+        database_dir: Optional path to the database directory on disk.
+            Defaults to the directory exported by ``api_server`` or a local
+            ``database/`` fallback.
+
+    Returns:
+        A dict with import statistics including counts of imported prototypes
+        and materials, and any errors encountered.
+    """
     from pathlib import Path
+
+    _DB_DIR = Path(__file__).parent / "database"
+    parse_cif_file = None
     try:
-        from api_server import parse_cif_file, DATABASE_DIR as _DB_DIR
+        from api_server import parse_cif_file as _parse_cif
+        parse_cif_file = _parse_cif
     except ImportError:
-        _DB_DIR = Path(__file__).parent / "database"
-        print(f"⚠️ 无法导入 api_server，使用默认数据库路径: {_DB_DIR}")
+        pass
 
     db_dir = Path(database_dir) if database_dir else _DB_DIR
 
@@ -172,7 +239,7 @@ def migrate_from_filesystem(db: Session, database_dir: str = None):
 
     imported_protos = 0
     imported_mats = 0
-    errors = []
+    errors: list[str] = []
 
     try:
         # 先禁用外键约束检查（MySQL 特定）
@@ -247,7 +314,7 @@ def migrate_from_filesystem(db: Session, database_dir: str = None):
                     if existing:
                         continue
 
-                    if 'parse_cif_file' in globals():
+                    if parse_cif_file is not None:
                         cif_data = parse_cif_file(cif_path)
                         if not cif_data:
                             continue
@@ -262,6 +329,7 @@ def migrate_from_filesystem(db: Session, database_dir: str = None):
                         formula = material_id
                         space_group = "P1"
                         elements = []
+                        atom_sites = []
 
                     mat = Material(
                         id=material_id,
@@ -275,7 +343,7 @@ def migrate_from_filesystem(db: Session, database_dir: str = None):
                         lattice_alpha=lattice.get("alpha"),
                         lattice_beta=lattice.get("beta"),
                         lattice_gamma=lattice.get("gamma"),
-                        n_atoms=len(elements) if elements else 0,
+                        n_atoms=len(atom_sites) if atom_sites else 0,
                         is_verified=is_verified,
                         source="verified" if is_verified else "raw",
                         cif_path=str(cif_path.relative_to(db_dir)),

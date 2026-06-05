@@ -2,6 +2,8 @@ import os
 import warnings
 from pathlib import Path
 
+_base_dir = Path(__file__).resolve().parent
+
 # --- Security ---
 SECRET_KEY: str = os.environ.get("SECRET_KEY", "change-me-in-production")
 if SECRET_KEY == "change-me-in-production":
@@ -28,9 +30,19 @@ CORS_ORIGINS: str = os.environ.get("CORS_ORIGINS", "")
 
 # --- Logging ---
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
+LOG_DIR: Path = Path(os.environ.get("LOG_DIR", str(_base_dir / "logs")))
+
+# --- Upload / Request Limits ---
+MAX_CONTENT_LENGTH: int = int(os.environ.get("MAX_CONTENT_LENGTH", "52428800"))  # 50 MB
+
+# --- Rate Limiting ---
+RATE_LIMIT_WINDOW: int = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))  # seconds
+RATE_LIMIT_MAX_REQUESTS: int = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "100"))
+
+# --- API ---
+API_VERSION: str = "1.0.0"
 
 # --- Directories ---
-_base_dir: Path = Path(__file__).resolve().parent
 DATABASE_DIR: Path = Path(os.environ.get("DATABASE_DIR", str(_base_dir / "database")))
 UPLOAD_DIR: Path = Path(os.environ.get("UPLOAD_DIR", str(_base_dir / "uploads")))
 MODEL_DIR: Path = Path(os.environ.get("MODEL_DIR", str(_base_dir / "models")))

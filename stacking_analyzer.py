@@ -2,23 +2,28 @@ import os
 import json
 import math
 import random
-import traceback
 from pathlib import Path
 from collections import Counter, defaultdict
 from fractions import Fraction
+from typing import Any, Optional, Union
 
 import numpy as np
+
+from config import DATABASE_DIR as CFG_DATABASE_DIR, UPLOAD_DIR as CFG_UPLOAD_DIR, MODEL_DIR as CFG_MODEL_DIR
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 HAS_PYMATGEN = False
 HAS_SKLEARN = False
 
 _pymatgen = None
 _sklearn_modules = None
-_model_cache = {}
+_model_cache: dict[str, Any] = {}
 
-DATABASE_DIR = Path(__file__).resolve().parent / "database"
-UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
-MODEL_DIR = Path(__file__).resolve().parent / "models"
+DATABASE_DIR = CFG_DATABASE_DIR if CFG_DATABASE_DIR else Path(__file__).resolve().parent / "database"
+UPLOAD_DIR = CFG_UPLOAD_DIR if CFG_UPLOAD_DIR else Path(__file__).resolve().parent / "uploads"
+MODEL_DIR = CFG_MODEL_DIR if CFG_MODEL_DIR else Path(__file__).resolve().parent / "models"
 
 UPLOAD_DIR.mkdir(exist_ok=True)
 MODEL_DIR.mkdir(exist_ok=True)
@@ -30,7 +35,13 @@ M_LAYER_TYPES = {"M6", "M7"}
 X_LAYER_TYPES = {"XO", "XO2", "XO3", "X", "XBO3", "XB3O6"}
 
 
-def _ensure_pymatgen():
+def _ensure_pymatgen() -> dict[str, Any]:
+    """Lazily import and cache pymatgen modules.
+
+    Returns:
+        A dict of pymatgen classes (Structure, Lattice, CifParser, Element)
+        or an empty dict if pymatgen is not installed.
+    """
     global HAS_PYMATGEN, _pymatgen
     if _pymatgen is not None:
         return _pymatgen
@@ -45,7 +56,13 @@ def _ensure_pymatgen():
     return _pymatgen
 
 
-def _ensure_sklearn():
+def _ensure_sklearn() -> dict[str, Any]:
+    """Lazily import and cache scikit-learn modules.
+
+    Returns:
+        A dict of sklearn classes and utilities, or an empty dict if
+        scikit-learn is not installed.
+    """
     global HAS_SKLEARN, _sklearn_modules
     if _sklearn_modules is not None:
         return _sklearn_modules
@@ -77,12 +94,31 @@ def _ensure_sklearn():
     return _sklearn_modules
 
 
-def _rationalize(value, max_den=10000):
+def _rationalize(value: float, max_den: int = 10000) -> Fraction:
+    """Convert a float to the nearest rational Fraction with bounded denominator.
+
+    Args:
+        value: The floating-point value to rationalize.
+        max_den: Maximum denominator for the rational approximation.
+
+    Returns:
+        A Fraction approximating the input value.
+    """
     f = Fraction(value).limit_denominator(max_den)
     return f
 
 
-def _infer_axis_grid(values, max_den=10000, max_grid=100):
+def _infer_axis_grid(values: list[float], max_den: int = 10000, max_grid: int = 100) -> int:
+    """Infer the grid periodicity along one axis from fractional coordinates.
+
+    Args:
+        values: List of fractional coordinate values.
+        max_den: Maximum denominator for rational approximation.
+        max_grid: Upper bound on the returned grid size.
+
+    Returns:
+        The inferred grid size (least common multiple of denominators).
+    """
     vals = sorted(set(float(v) % 1.0 for v in values))
     if not vals:
         return 1
@@ -98,7 +134,16 @@ def _infer_axis_grid(values, max_den=10000, max_grid=100):
     return max(1, min(grid, max_grid))
 
 
-def infer_grid(sites, max_den=10000):
+def infer_grid(sites: list[tuple[float, float]], max_den: int = 10000) -> tuple[int, int]:
+    """Infer the 2D grid periodicity from in-plane fractional coordinates.
+
+    Args:
+        sites: List of (x, y) fractional coordinate pairs.
+        max_den: Maximum denominator for rational approximation.
+
+    Returns:
+        A tuple (grid_x, grid_y) of inferred grid sizes.
+    """
     xs = [p[0] % 1.0 for p in sites]
     ys = [p[1] % 1.0 for p in sites]
     gx = _infer_axis_grid(xs, max_den)
@@ -106,12 +151,44 @@ def infer_grid(sites, max_den=10000):
     return gx, gy
 
 
-def _frac_diff(a, b):
+def _frac_diff(a: float, b: float) -> float:
+    """Compute the minimum fractional distance between two values on a unit circle.
+
+    Args:
+        a: First fractional coordinate.
+        b: Second fractional coordinate.
+
+    Returns:
+        The shortest distance in [0, 0.5].
+    """
     d = abs((a % 1.0) - (b % 1.0))
     return min(d, 1.0 - d)
 
 
-def _group_atoms_by_axis(atom_sites, axis="z", tol=0.02):
+def _group_atoms_by_axis(
+    atom_sites: list[dict[str, Any]],
+    axis: str = "z",
+    tol: float = 0.02,
+) -> list[tuple[float, list[dict[str, Any]]]]:
+    """Cluster atom sites into layers along a specified axis.
+
+    Uses a greedy single-linkage clustering approach: sorted fractional
+    coordinates are grouped when consecutive values differ by less than
+    *tol*.  The boundary between the first and last cluster is also
+    checked (periodic wrap-around at 1.0).
+
+    Args:
+        atom_sites: List of atom site dicts, each with keys ``element``,
+            ``x``, ``y``, ``z``.
+        axis: The fractional-coordinate axis to layer along (``"x"``,
+            ``"y"``, or ``"z"``).
+        tol: Tolerance for grouping nearby coordinates into one layer.
+
+    Returns:
+        A sorted list of (center, atoms) tuples where *center* is the
+        mean fractional coordinate of the cluster and *atoms* is the list
+        of atom site dicts assigned to that layer.
+    """
     if not atom_sites:
         return []
     coords = sorted(float(s[axis]) % 1.0 for s in atom_sites)
@@ -128,7 +205,7 @@ def _group_atoms_by_axis(atom_sites, axis="z", tol=0.02):
         clusters[0] = [v - 1.0 for v in clusters[-1]] + clusters[0]
         clusters.pop()
     centers = [(sum(c) / len(c)) % 1.0 for c in clusters]
-    groups = [[] for _ in centers]
+    groups: list[list[dict[str, Any]]] = [[] for _ in centers]
     for s in atom_sites:
         z = float(s[axis]) % 1.0
         best_i = 0
@@ -146,7 +223,21 @@ def _group_atoms_by_axis(atom_sites, axis="z", tol=0.02):
     return sorted(zip(centers, groups), key=lambda x: x[0])
 
 
-def _choose_layer_axis_and_tol(cif_data):
+def _choose_layer_axis_and_tol(cif_data: Optional[dict[str, Any]]) -> tuple[str, float]:
+    """Select the best axis and tolerance for layer decomposition.
+
+    Scores each candidate axis (z, y, x) by how well atoms separate
+    into alternating oxygen / non-oxygen layers.  The scoring formula
+    balances compression (fewer layers than atoms), alternating pattern
+    strength, and a penalty for too many layers.
+
+    Args:
+        cif_data: Parsed CIF data dict with ``lattice`` and
+            ``atom_sites`` keys.
+
+    Returns:
+        A tuple (axis, tolerance) for the best-scoring axis.
+    """
     lattice = cif_data.get("lattice", {}) if cif_data else {}
     atom_sites = cif_data.get("atom_sites", []) if cif_data else []
     n_atoms = len(atom_sites)
@@ -156,7 +247,7 @@ def _choose_layer_axis_and_tol(cif_data):
     axis_len_key = {"x": "a", "y": "b", "z": "c"}
     axes = ["z", "y", "x"]
 
-    def axis_tol(axis):
+    def axis_tol(axis: str) -> float:
         L = lattice.get(axis_len_key[axis], 0) or 0
         if L and L > 0:
             return min(0.05, max(0.002, 0.5 / float(L)))
@@ -188,7 +279,19 @@ def _choose_layer_axis_and_tol(cif_data):
     return best[0], best[1]
 
 
-def _plane_coords(layer_atoms, axis):
+def _plane_coords(
+    layer_atoms: list[dict[str, Any]],
+    axis: str,
+) -> list[tuple[float, float]]:
+    """Extract the two in-plane fractional coordinates for a set of atoms.
+
+    Args:
+        layer_atoms: Atom site dicts in the layer.
+        axis: The out-of-plane axis (``"x"``, ``"y"``, or ``"z"``).
+
+    Returns:
+        List of (coord1, coord2) tuples representing in-plane positions.
+    """
     if axis == "x":
         return [(s["y"], s["z"]) for s in layer_atoms]
     if axis == "y":
@@ -196,7 +299,20 @@ def _plane_coords(layer_atoms, axis):
     return [(s["x"], s["y"]) for s in layer_atoms]
 
 
-def parse_cif_text(cif_text):
+def parse_cif_text(cif_text: str) -> Optional[dict[str, Any]]:
+    """Parse a CIF text string into structured crystal data.
+
+    Uses pymatgen's CifParser to extract lattice parameters, atom sites,
+    formula, and space group from the CIF text.
+
+    Args:
+        cif_text: Raw CIF file content as a string.
+
+    Returns:
+        A dict with keys ``lattice``, ``atom_sites``, ``formula``,
+        ``space_group``, or None if parsing fails or pymatgen is not
+        installed.
+    """
     pmg = _ensure_pymatgen()
     if not pmg:
         return None
@@ -230,19 +346,56 @@ def parse_cif_text(cif_text):
             "space_group": None,
         }
     except Exception:
-        pass
+        logger.debug("Failed to parse CIF text", exc_info=True)
     return None
 
 
-def parse_cif_file(cif_path):
+def parse_cif_file(cif_path: Union[str, Path]) -> Optional[dict[str, Any]]:
+    """Read and parse a CIF file from disk.
+
+    Args:
+        cif_path: Path to the CIF file.
+
+    Returns:
+        Parsed CIF data dict, or None if the file cannot be read or
+        parsed.
+    """
     try:
         text = Path(cif_path).read_text(encoding="utf-8", errors="ignore")
         return parse_cif_text(text)
     except Exception:
+        logger.debug("Failed to read CIF file: %s", cif_path, exc_info=True)
         return None
 
 
-def extract_features(cif_data):
+def extract_features(cif_data: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """Extract a comprehensive feature vector from parsed CIF data.
+
+    The feature vector includes 50+ features covering:
+
+    - **Layer geometry**: number of layers, inter-layer spacing
+      statistics (mean, std, max, min, range, CV).
+    - **Layer composition**: atom count statistics per layer, oxygen
+      ratio statistics, counts of pure-metal / pure-oxygen / mixed
+      layers.
+    - **Alternation**: alternating oxygen/metal score, layer repeat
+      length.
+    - **Grid & symmetry**: 2D grid periodicity, hexagonal/cubic flags,
+      lattice ratios (b/a, c/a).
+    - **Cation chemistry**: average cation radius, radius range.
+    - **Layer type counts**: XO, XO2, XO3, X, XBO3, BO3, XB3O6, M6,
+      M7, T layer counts and binary presence flags.
+    - **Pair counts**: XO3-M7, XO3-T, XO-T, XO2-T adjacent pairs.
+    - **Ratios**: main/M, main/T, M/T, O/non-O ratios.
+    - **Sequence**: layer type sequence string, distinct type count.
+
+    Args:
+        cif_data: Parsed CIF data dict with ``lattice`` and
+            ``atom_sites`` keys.
+
+    Returns:
+        A dict of feature name → value, or None if input is invalid.
+    """
     if not cif_data or "atom_sites" not in cif_data:
         return None
 
@@ -302,6 +455,7 @@ def extract_features(cif_data):
         try:
             gx, gy = infer_grid(_plane_coords(layer_atoms, layer_axis))
         except Exception:
+            logger.debug("Grid inference failed for layer at z=%.4f", z_val)
             gx, gy = 1, 1
         gx = min(gx, 100)
         gy = min(gy, 100)
@@ -386,6 +540,7 @@ def extract_features(cif_data):
     try:
         gx, gy = infer_grid(_plane_coords(atom_sites, layer_axis))
     except Exception:
+        logger.debug("Grid inference failed for overall structure")
         gx, gy = 1, 1
     gx = min(gx, 100)
     gy = min(gy, 100)
@@ -407,7 +562,7 @@ def extract_features(cif_data):
                 if el.average_cation_radius and el.average_cation_radius > 0:
                     cation_sizes.append((el.average_cation_radius, cnt))
             except Exception:
-                pass
+                logger.debug("Could not get cation radius for element %s", e)
 
     avg_cation_radius = sum(r * c for r, c in cation_sizes) / sum(c for _, c in cation_sizes) if cation_sizes else 0
     radius_range = (max(r for r, _ in cation_sizes) - min(r for r, _ in cation_sizes)) if len(cation_sizes) > 1 else 0
@@ -558,7 +713,20 @@ def extract_features(cif_data):
     return features
 
 
-def extract_layer_features(cif_data):
+def extract_layer_features(cif_data: Optional[dict[str, Any]]) -> Optional[list[dict[str, Any]]]:
+    """Extract per-layer analysis from parsed CIF data.
+
+    For each layer identified along the optimal axis, computes the
+    layer's z-position, atom count, element composition, oxygen
+    presence, X:O ratio, 2D grid, and predicted layer type.
+
+    Args:
+        cif_data: Parsed CIF data dict with ``lattice`` and
+            ``atom_sites`` keys.
+
+    Returns:
+        A list of per-layer info dicts, or None if input is invalid.
+    """
     if not cif_data or "atom_sites" not in cif_data:
         return None
 
@@ -582,6 +750,7 @@ def extract_layer_features(cif_data):
         try:
             gx, gy = infer_grid(_plane_coords(layer_atoms, layer_axis))
         except Exception:
+            logger.debug("Grid inference failed for layer at z=%.4f in extract_layer_features", z_val)
             gx, gy = 1, 1
         gx = min(gx, 100)
         gy = min(gy, 100)
@@ -632,7 +801,20 @@ def extract_layer_features(cif_data):
     return layer_infos
 
 
-def scan_database_cifs(data_dir=None):
+def scan_database_cifs(data_dir: Optional[Union[str, Path]] = None) -> list[dict[str, Any]]:
+    """Scan the database directory for CIF files and extract features.
+
+    Walks through ``Raw_Proto_*`` and ``Verified_Proto_*`` subdirectories,
+    parses each CIF file, and collects features, layer analysis, and
+    topology metadata.
+
+    Args:
+        data_dir: Root database directory. Defaults to ``DATABASE_DIR``.
+
+    Returns:
+        A list of sample dicts, each containing filename, topology,
+        formula, features, layer analysis, and expanded modes.
+    """
     if data_dir is None:
         data_dir = DATABASE_DIR
     data_dir = Path(data_dir)
@@ -663,7 +845,7 @@ def scan_database_cifs(data_dir=None):
                     proto_data = json.load(f)
                 expanded_modes = proto_data.get("topology_theory", {}).get("expanded_modes", [])
             except Exception:
-                pass
+                logger.warning("Failed to read prototype file: %s", proto_path)
 
         for cif_path in sorted(cif_dir.glob("*.cif")):
             fname = cif_path.name
@@ -694,7 +876,18 @@ def scan_database_cifs(data_dir=None):
     return samples
 
 
-def get_layer_type_labels(samples):
+def get_layer_type_labels(samples: list[dict[str, Any]]) -> dict[str, str]:
+    """Derive a layer-type label for each topology from sample data.
+
+    Uses the ``expanded_modes`` field if available; otherwise falls back
+    to parsing the topology name string.
+
+    Args:
+        samples: List of sample dicts from ``scan_database_cifs``.
+
+    Returns:
+        A dict mapping topology names to their primary layer type label.
+    """
     labels = {}
     for s in samples:
         topo = s["topology"]
@@ -746,7 +939,18 @@ STACKING_FEATURE_NAMES = [
 ]
 
 
-def _is_valid_layer_sequence(modes):
+def _is_valid_layer_sequence(modes: list[str]) -> bool:
+    """Check whether a layer mode sequence is structurally valid.
+
+    A valid sequence must contain at least one main-layer mode, and
+    every M-type mode must be adjacent to at least one main-layer mode.
+
+    Args:
+        modes: List of layer mode strings.
+
+    Returns:
+        True if the sequence is valid, False otherwise.
+    """
     if not modes:
         return False
     has_main = any(m in MAIN_MODES for m in modes)
@@ -761,7 +965,15 @@ def _is_valid_layer_sequence(modes):
     return True
 
 
-def _generate_layer_sequences():
+def _generate_layer_sequences() -> list[tuple[str, ...]]:
+    """Generate all valid layer mode sequences up to length 5.
+
+    Enumerates combinations of main-layer and M-layer modes, inserting
+    M layers at valid positions within main-layer permutations.
+
+    Returns:
+        A deduplicated list of layer mode tuples.
+    """
     import itertools
     main_pool = ["XO3", "XO2", "XO", "XBO3", "XB3O6", "BO3", "X"]
     m_pool = ["M7", "M6"]
@@ -785,7 +997,26 @@ def _generate_layer_sequences():
     return unique
 
 
-def _extract_features_for_layer(layer_modes, shift_sequence, idx, gen):
+def _extract_features_for_layer(
+    layer_modes: list[str],
+    shift_sequence: list[Optional[str]],
+    idx: int,
+    gen: Any,
+) -> list[int]:
+    """Extract the 19-dimensional stacking feature vector for one layer.
+
+    Features encode the current mode, neighbouring modes, shift context,
+    and positional information within the layer sequence.
+
+    Args:
+        layer_modes: Full list of layer mode strings.
+        shift_sequence: Parallel list of shift labels (A/B/C or None).
+        idx: Index of the target layer.
+        gen: A LayeredXOGenerator instance for XB3O6-between checks.
+
+    Returns:
+        A list of 19 integer feature values.
+    """
     n = len(layer_modes)
     mode = layer_modes[idx]
     prev_mode = layer_modes[(idx - 1) % n]
@@ -826,6 +1057,7 @@ def _extract_features_for_layer(layer_modes, shift_sequence, idx, gen):
         try:
             between_xb3o6 = 1 if gen.is_m_layer_between_xb3o6(idx, layer_modes) else 0
         except Exception:
+            logger.debug("is_m_layer_between_xb3o6 failed for idx=%d", idx)
             between_xb3o6 = 0
 
     n_main_in_seq = sum(1 for m in layer_modes if m in MAIN_MODES)
@@ -872,7 +1104,18 @@ def _extract_features_for_layer(layer_modes, shift_sequence, idx, gen):
     ]
 
 
-def _generate_stacking_training_data(max_sequences=500):
+def _generate_stacking_training_data(max_sequences: int = 500) -> tuple[np.ndarray, np.ndarray]:
+    """Generate synthetic training data for stacking prediction.
+
+    Uses LayeredXOGenerator to build shift sequences for a variety of
+    layer mode combinations and stacking patterns.
+
+    Args:
+        max_sequences: Maximum number of layer sequences to sample.
+
+    Returns:
+        A tuple (X, y) of numpy arrays for features and labels.
+    """
     from layer_generator import LayeredXOGenerator
     gen = LayeredXOGenerator(enable_t=True)
     sequences = _generate_layer_sequences()
@@ -918,14 +1161,51 @@ def _generate_stacking_training_data(max_sequences=500):
                         y_data.append(label)
 
             except Exception:
+                logger.debug("Stacking data generation failed for modes=%s, stack=%s", layer_modes, stack_seq)
                 continue
 
     return np.array(X_data), np.array(y_data)
 
 
-def train_decision_tree(samples=None, test_ratio=0.2, max_depth=10, random_state=42,
-                        model_type="stacking_dt", n_iterations=1, cv_folds=5,
-                        progress_callback=None, data_dir=None, max_sequences=500):
+def train_decision_tree(
+    samples: Optional[list[dict[str, Any]]] = None,
+    test_ratio: float = 0.2,
+    max_depth: Optional[int] = 10,
+    random_state: int = 42,
+    model_type: str = "stacking_dt",
+    n_iterations: int = 1,
+    cv_folds: int = 5,
+    progress_callback: Optional[Any] = None,
+    data_dir: Optional[Union[str, Path]] = None,
+    max_sequences: int = 500,
+) -> dict[str, Any]:
+    """Train a decision tree model for stacking sequence prediction.
+
+    Generates synthetic training data via LayeredXOGenerator, then
+    performs a grid search over tree hyperparameters (depth, criterion,
+    min_samples_leaf, min_samples_split).  The best model is selected
+    by a composite score balancing cross-validation accuracy, variance,
+    and overfitting penalty.
+
+    Args:
+        samples: Unused (kept for API compatibility).
+        test_ratio: Fraction of data reserved for testing (clamped to
+            [0.1, 0.5]).
+        max_depth: Maximum tree depth to explore.  If None, searches
+            [5, 8, 10, 12, 15].
+        random_state: Random seed for reproducibility.
+        model_type: Model type identifier (default ``"stacking_dt"``).
+        n_iterations: Unused (kept for API compatibility).
+        cv_folds: Number of cross-validation folds.
+        progress_callback: Optional callback accepting progress dicts.
+        data_dir: Unused (kept for API compatibility).
+        max_sequences: Maximum synthetic sequences to generate.
+
+    Returns:
+        A dict with keys ``success``, ``model_id``, ``best_params``,
+        ``feature_importances``, ``classification_report``,
+        ``confusion_matrix``, etc.
+    """
     sk = _ensure_sklearn()
     if not sk:
         return {"success": False, "error": "scikit-learn未安装，请运行: pip install scikit-learn"}
@@ -1012,7 +1292,7 @@ def train_decision_tree(samples=None, test_ratio=0.2, max_depth=10, random_state
                                 cv_mean = round(float(cv_scores.mean()), 4)
                                 cv_std = round(float(cv_scores.std()), 4)
                             except Exception:
-                                pass
+                                logger.debug("Cross-validation failed for depth=%s, criterion=%s", depth, criterion)
 
                         overfit = train_acc - test_acc
 
@@ -1045,6 +1325,7 @@ def train_decision_tree(samples=None, test_ratio=0.2, max_depth=10, random_state
                                 "min_samples_split": mss,
                             }
                     except Exception:
+                        logger.debug("Training failed for depth=%s, criterion=%s, msl=%s, mss=%s", depth, criterion, msl, mss)
                         continue
 
     if best_overall is None:
@@ -1117,7 +1398,21 @@ def train_decision_tree(samples=None, test_ratio=0.2, max_depth=10, random_state
     }
 
 
-def _load_model(model_id):
+_MAX_MODEL_CACHE = 5
+
+
+def _load_model(model_id: str) -> Optional[dict[str, Any]]:
+    """Load a trained model from disk with LRU caching.
+
+    Maintains an in-memory cache of up to ``_MAX_MODEL_CACHE`` models.
+    When the cache is full, the oldest entry is evicted.
+
+    Args:
+        model_id: Identifier of the model to load.
+
+    Returns:
+        The loaded model dict, or None if loading fails.
+    """
     if model_id in _model_cache:
         return _model_cache[model_id]
 
@@ -1131,16 +1426,37 @@ def _load_model(model_id):
 
     try:
         saved = sk["joblib"].load(model_path)
-        _model_cache[model_id] = saved
-        if len(_model_cache) > 5:
+        # Simple LRU: remove oldest if cache is full
+        if len(_model_cache) >= _MAX_MODEL_CACHE:
             oldest_key = next(iter(_model_cache))
             del _model_cache[oldest_key]
+        _model_cache[model_id] = saved
         return saved
     except Exception:
+        logger.warning("Failed to load model %s", model_id)
         return None
 
 
-def predict_stacking(model_id, layer_modes, stack_sequence="ABC"):
+def predict_stacking(
+    model_id: str,
+    layer_modes: list[str],
+    stack_sequence: str = "ABC",
+) -> dict[str, Any]:
+    """Predict stacking shifts for each layer using a trained model.
+
+    Uses the model identified by *model_id* to predict A/B/C shift
+    labels for every layer in *layer_modes*, given the overall stacking
+    sequence pattern.
+
+    Args:
+        model_id: Identifier of the trained model.
+        layer_modes: List of layer mode strings (e.g. ["XO3", "M7"]).
+        stack_sequence: Overall stacking pattern (e.g. "ABC").
+
+    Returns:
+        A dict with ``success``, ``predictions`` (per-layer details),
+        ``accuracy``, and expanded mode information.
+    """
     model_path = MODEL_DIR / f"{model_id}.pkl"
     if not model_path.exists():
         return {"success": False, "error": f"模型不存在: {model_id}"}
@@ -1206,7 +1522,7 @@ def predict_stacking(model_id, layer_modes, stack_sequence="ABC"):
                     cls_name = label_map.get(int(cls_idx), str(cls_idx))
                     proba_dict[cls_name] = round(float(prob), 4)
             except Exception:
-                pass
+                logger.debug("predict_proba failed for layer %d", i)
 
         predictions.append({
             "layer_index": i,
@@ -1235,7 +1551,22 @@ def predict_stacking(model_id, layer_modes, stack_sequence="ABC"):
     }
 
 
-def predict_stacking_from_cif(model_id, cif_data):
+def predict_stacking_from_cif(
+    model_id: str,
+    cif_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Predict stacking shifts from raw CIF data.
+
+    Extracts layer features from the CIF data, infers layer modes, and
+    delegates to ``predict_stacking`` for the actual prediction.
+
+    Args:
+        model_id: Identifier of the trained model.
+        cif_data: Parsed CIF data dict.
+
+    Returns:
+        A dict with prediction results and layer analysis.
+    """
     model_path = MODEL_DIR / f"{model_id}.pkl"
     if not model_path.exists():
         return {"success": False, "error": f"模型不存在: {model_id}"}
@@ -1266,7 +1597,15 @@ def predict_stacking_from_cif(model_id, cif_data):
     return result
 
 
-def list_models():
+def list_models() -> list[dict[str, Any]]:
+    """List all saved model artifacts with metadata.
+
+    Scans the model directory for ``.pkl`` files and reads associated
+    ``_meta.json`` sidecar files when available.
+
+    Returns:
+        A list of model info dicts sorted by test accuracy (descending).
+    """
     models = []
     for model_path in MODEL_DIR.glob("*_*.pkl"):
         model_id = model_path.stem
@@ -1277,7 +1616,7 @@ def list_models():
                 with open(meta_path, "r") as f:
                     meta = json.load(f)
             except Exception:
-                pass
+                logger.warning("Failed to read model meta: %s", meta_path)
         models.append({
             "model_id": model_id,
             "created": meta.get("created", ""),
@@ -1288,7 +1627,13 @@ def list_models():
     return sorted(models, key=lambda x: x.get("test_accuracy", 0), reverse=True)
 
 
-def save_model_meta(model_id, train_result):
+def save_model_meta(model_id: str, train_result: dict[str, Any]) -> None:
+    """Save training result metadata as a JSON sidecar file.
+
+    Args:
+        model_id: Identifier of the trained model.
+        train_result: The result dict returned by ``train_decision_tree``.
+    """
     meta_path = MODEL_DIR / f"{model_id}_meta.json"
     meta = {
         "model_id": model_id,
@@ -1305,7 +1650,15 @@ def save_model_meta(model_id, train_result):
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
 
-def delete_model(model_id):
+def delete_model(model_id: str) -> bool:
+    """Delete a saved model and its metadata from disk and cache.
+
+    Args:
+        model_id: Identifier of the model to delete.
+
+    Returns:
+        True if any file was deleted, False otherwise.
+    """
     _model_cache.pop(model_id, None)
     deleted = False
     for ext in [".pkl", "_meta.json"]:

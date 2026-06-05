@@ -5,11 +5,12 @@ import os
 import re
 import sys
 import time
-import traceback
+import tempfile
 import threading
 import queue as queue_mod
 from pathlib import Path
 from collections import defaultdict
+from typing import Any, Optional
 
 from flask import Flask, request, jsonify, Response, make_response
 from flask_cors import CORS
@@ -21,6 +22,7 @@ logger = get_logger(__name__)
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max upload
 CORS(app, origins=CORS_ORIGINS.split(",") if CORS_ORIGINS else ["*"])
 
 _start_time = time.time()
@@ -36,11 +38,57 @@ formula_to_materials = defaultdict(list)
 all_elements = set()
 _indexes_built = False
 _index_build_time = 0
-_api_cache = {}
-_api_cache_ttl = {}
 
 
-def _sanitize_json_value(value):
+class _TTLCache:
+    """Thread-safe TTL cache for API responses."""
+
+    def __init__(self) -> None:
+        self._cache: dict[str, Any] = {}
+        self._expiry: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Optional[Any]:
+        with self._lock:
+            if key in self._cache and key in self._expiry:
+                if time.time() < self._expiry[key]:
+                    return self._cache[key]
+                del self._cache[key]
+                del self._expiry[key]
+        return None
+
+    def set(self, key: str, value: Any, ttl: int = 300) -> None:
+        with self._lock:
+            self._cache[key] = value
+            self._expiry[key] = time.time() + ttl
+
+    def invalidate(self, *keys: str) -> None:
+        with self._lock:
+            for key in keys:
+                self._cache.pop(key, None)
+                self._expiry.pop(key, None)
+
+    def invalidate_all(self) -> None:
+        with self._lock:
+            self._cache.clear()
+            self._expiry.clear()
+
+
+_api_cache = _TTLCache()
+
+
+def _sanitize_json_value(value: Any) -> Any:
+    """Sanitize JSON values by replacing non-finite floats with None.
+
+    Recursively processes dicts, lists, and tuples to ensure all values
+    are JSON-serializable (no NaN or Infinity).
+
+    Args:
+        value: The value to sanitize.
+
+    Returns:
+        The sanitized value with non-finite floats replaced by None.
+    """
     if isinstance(value, float) and not math.isfinite(value):
         return None
     if isinstance(value, dict):
@@ -52,21 +100,12 @@ def _sanitize_json_value(value):
     return value
 
 
-def _cached_json(cache_key, data, ttl=300):
-    _api_cache[cache_key] = data
-    _api_cache_ttl[cache_key] = time.time() + ttl
+def _get_stack_main() -> Any:
+    """Import and return the LayeredXOGenerator class from stack_main.
 
-
-def _get_cached(cache_key):
-    if cache_key in _api_cache and cache_key in _api_cache_ttl:
-        if time.time() < _api_cache_ttl[cache_key]:
-            return _api_cache[cache_key]
-        del _api_cache[cache_key]
-        del _api_cache_ttl[cache_key]
-    return None
-
-
-def _get_stack_main():
+    Returns:
+        The LayeredXOGenerator class, or None if import fails.
+    """
     try:
         from stack_main import LayeredXOGenerator
         return LayeredXOGenerator
@@ -74,7 +113,12 @@ def _get_stack_main():
         return None
 
 
-def _get_pymatgen_structure():
+def _get_pymatgen_structure() -> Any:
+    """Import and return the pymatgen Structure class.
+
+    Returns:
+        The Structure class, or None if import fails.
+    """
     try:
         from pymatgen.core import Structure
         return Structure
@@ -82,7 +126,12 @@ def _get_pymatgen_structure():
         return None
 
 
-def _get_pymatgen_cifparser():
+def _get_pymatgen_cifparser() -> Any:
+    """Import and return the pymatgen CifParser class.
+
+    Returns:
+        The CifParser class, or None if import fails.
+    """
     try:
         from pymatgen.io.cif import CifParser
         return CifParser
@@ -90,7 +139,12 @@ def _get_pymatgen_cifparser():
         return None
 
 
-def _get_spacegroup_analyzer():
+def _get_spacegroup_analyzer() -> Any:
+    """Import and return the pymatgen SpacegroupAnalyzer class.
+
+    Returns:
+        The SpacegroupAnalyzer class, or None if import fails.
+    """
     try:
         from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
         return SpacegroupAnalyzer
@@ -98,7 +152,12 @@ def _get_spacegroup_analyzer():
         return None
 
 
-def _get_verify_topology():
+def _get_verify_topology() -> Any:
+    """Import and return the verify_topology module.
+
+    Returns:
+        The verify_topology module, or None if import fails.
+    """
     try:
         import verify_topology
         return verify_topology
@@ -106,7 +165,12 @@ def _get_verify_topology():
         return None
 
 
-def _get_stacking_analyzer():
+def _get_stacking_analyzer() -> Any:
+    """Import and return the stacking_analyzer module.
+
+    Returns:
+        The stacking_analyzer module, or None if import fails.
+    """
     try:
         import stacking_analyzer
         return stacking_analyzer
@@ -114,7 +178,15 @@ def _get_stacking_analyzer():
         return None
 
 
-def parse_cif_file(cif_path):
+def parse_cif_file(cif_path: Path) -> Optional[dict]:
+    """Parse a CIF file using pymatgen with manual fallback.
+
+    Args:
+        cif_path: Path to the CIF file.
+
+    Returns:
+        Dictionary with lattice, atom_sites, formula, space_group or None if parsing fails.
+    """
     CifParser = _get_pymatgen_cifparser()
     if CifParser:
         try:
@@ -146,12 +218,20 @@ def parse_cif_file(cif_path):
                 "space_group": None,
             }
         except Exception:
-            pass
+            logger.debug("pymatgen CIF parse failed for %s, falling back to manual parser", cif_path)
 
     return parse_cif_file_manual(cif_path)
 
 
-def parse_cif_file_manual(cif_path):
+def parse_cif_file_manual(cif_path: Path) -> Optional[dict]:
+    """Parse a CIF file using a manual regex-based parser.
+
+    Args:
+        cif_path: Path to the CIF file.
+
+    Returns:
+        Dictionary with lattice, atom_sites, formula, space_group or None if parsing fails.
+    """
     try:
         text = cif_path.read_text(encoding="utf-8", errors="ignore")
         lattice = {}
@@ -244,7 +324,15 @@ def parse_cif_file_manual(cif_path):
         return None
 
 
-def parse_cif_filename(filename):
+def parse_cif_filename(filename: str) -> tuple[str, str, str]:
+    """Parse a CIF filename to extract material_id, formula, and space_group.
+
+    Args:
+        filename: The CIF filename to parse.
+
+    Returns:
+        A tuple of (material_id, formula, space_group).
+    """
     stem = Path(filename).stem
     mp_match = re.search(r"(mp-\d+)", stem)
     material_id = mp_match.group(1) if mp_match else stem
@@ -256,11 +344,25 @@ def parse_cif_filename(filename):
     return material_id, formula, space_group
 
 
-def extract_elements_from_formula(formula):
+def extract_elements_from_formula(formula: str) -> list[str]:
+    """Extract element symbols from a chemical formula string.
+
+    Args:
+        formula: Chemical formula string (e.g., 'BaMgSi2O6').
+
+    Returns:
+        List of element symbols found in the formula.
+    """
     return [m.group(0) for m in re.finditer(r"[A-Z][a-z]?", formula)]
 
 
-def build_indexes():
+def build_indexes() -> None:
+    """Build in-memory indexes from the filesystem database.
+
+    Scans the DATABASE_DIR for prototype JSON files and CIF directories,
+    populating prototypes_index, materials_index, and various lookup maps.
+    Only runs once; subsequent calls are no-ops.
+    """
     global prototypes_index, materials_index, topology_to_materials
     global element_to_materials, space_group_to_materials
     global formula_to_materials, all_elements, _indexes_built, _index_build_time
@@ -281,7 +383,7 @@ def build_indexes():
                 "json_path": str(json_path),
             }
         except Exception:
-            pass
+            logger.warning("Failed to load prototype %s", json_path)
 
     cif_dirs = list(DATABASE_DIR.glob("Raw_Proto_*")) + list(DATABASE_DIR.glob("Verified_Proto_*"))
     for cif_dir in cif_dirs:
@@ -316,10 +418,18 @@ def build_indexes():
         element_to_materials[el] = element_to_materials[el]
 
     _index_build_time = time.time() - _t0
-    print(f"Indexed {len(prototypes_index)} prototypes, {len(materials_index)} materials in {_index_build_time:.2f}s")
+    logger.info("Indexed %d prototypes, %d materials in %.2fs", len(prototypes_index), len(materials_index), _index_build_time)
 
 
-def _parse_generate_body(body):
+def _parse_generate_body(body: dict) -> tuple[Optional[dict], Optional[str]]:
+    """Parse and validate the request body for structure generation endpoints.
+
+    Args:
+        body: The JSON request body dictionary.
+
+    Returns:
+        A tuple of (params_dict, None) on success, or (None, error_message) on failure.
+    """
     x_element = body.get("x_element", "Ba")
     o_element = body.get("o_element", "O")
     m_element = body.get("m_element", "Mg")
@@ -374,7 +484,18 @@ def _parse_generate_body(body):
     return params, None
 
 
-def _build_structure_from_params(params):
+def _build_structure_from_params(params: dict) -> tuple:
+    """Build a layered structure from the given parameters.
+
+    Args:
+        params: Dictionary of generation parameters from _parse_generate_body.
+
+    Returns:
+        A tuple of (LayeredXOGenerator instance, build_structure result tuple).
+
+    Raises:
+        RuntimeError: If stack_main module is not available.
+    """
     LayeredXOGenerator = _get_stack_main()
     if LayeredXOGenerator is None:
         raise RuntimeError("stack_main模块未安装，无法生成结构")
@@ -403,7 +524,17 @@ def _build_structure_from_params(params):
     return gen, result
 
 
-def _extract_structure_info(gen, result):
+def _extract_structure_info(gen: Any, result: tuple) -> dict:
+    """Extract detailed structure information from a generation result.
+
+    Args:
+        gen: The LayeredXOGenerator instance.
+        result: The result tuple from gen.build_structure().
+
+    Returns:
+        Dictionary with formula, lattice, atom_sites, atom_counts, topology,
+        space_group, structure, gen, and result keys.
+    """
     structure = result[0]
     exact_flag = result[1]
     base_len = result[2]
@@ -447,7 +578,7 @@ def _extract_structure_info(gen, result):
                 "crystal_system": sga.get_crystal_system(),
             }
         except Exception:
-            pass
+            logger.debug("Space group analysis failed")
 
     topology_info = {
         "expanded_modes": expanded_modes,
@@ -480,7 +611,16 @@ def _extract_structure_info(gen, result):
     }
 
 
-def _get_layer_data(gen, result):
+def _get_layer_data(gen: Any, result: tuple) -> list[dict]:
+    """Extract per-layer atom data for 2D plotting.
+
+    Args:
+        gen: The LayeredXOGenerator instance.
+        result: The result tuple from gen.build_structure().
+
+    Returns:
+        List of layer dictionaries with mode, shift, z, theta, dx, dy, grid coords, and atoms.
+    """
     layer_data = gen.get_layer_atoms_for_plot(
         result[6], result[7], result[8], result[10], result[11], result[12], result[2], result[0].lattice
     )
@@ -507,7 +647,15 @@ def _get_layer_data(gen, result):
     return serialized
 
 
-def _get_primitive_analysis(structure):
+def _get_primitive_analysis(structure: Any) -> dict:
+    """Analyze the primitive cell of a structure.
+
+    Args:
+        structure: A pymatgen Structure object.
+
+    Returns:
+        Dictionary with primitive cell info and wyckoff_signature, or error key on failure.
+    """
     SpacegroupAnalyzer = _get_spacegroup_analyzer()
     if not SpacegroupAnalyzer:
         return {"error": "pymatgen SpacegroupAnalyzer not available"}
@@ -540,6 +688,7 @@ def _get_primitive_analysis(structure):
             space_group = sga_prim.get_space_group_symbol()
             space_group_number = sga_prim.get_space_group_number()
         except Exception:
+            logger.debug("Space group analysis failed")
             space_group = None
             space_group_number = None
 
@@ -569,7 +718,7 @@ def _get_primitive_analysis(structure):
                     wyckoff_sig[elem].add(w_letter)
                 wyckoff_sig = {k: ", ".join(sorted(v)) for k, v in wyckoff_sig.items()}
         except Exception:
-            pass
+            logger.debug("Wyckoff analysis failed")
 
         return {
             "primitive": {
@@ -587,7 +736,18 @@ def _get_primitive_analysis(structure):
         return {"error": str(e)}
 
 
-def _get_coordination_analysis(structure, x_element, o_element, cutoff_radius=None):
+def _get_coordination_analysis(structure: Any, x_element: str, o_element: str, cutoff_radius: Optional[float] = None) -> dict:
+    """Analyze coordination environments of X atoms with O neighbors.
+
+    Args:
+        structure: A pymatgen Structure object.
+        x_element: Symbol of the X (cation) element.
+        o_element: Symbol of the O (anion) element.
+        cutoff_radius: Distance cutoff for neighbor search. Defaults to 2.77648 * 1.35.
+
+    Returns:
+        Dictionary with environments list containing coordination numbers and neighbor details.
+    """
     if cutoff_radius is None:
         cutoff_radius = 2.77648 * 1.35
 
@@ -638,7 +798,17 @@ def _get_coordination_analysis(structure, x_element, o_element, cutoff_radius=No
         return {"environments": [], "error": str(e)}
 
 
-def _get_prototype_doc(structure, result):
+def _get_prototype_doc(structure: Any, result: tuple) -> dict:
+    """Generate a prototype document from a structure and generation result.
+
+    Args:
+        structure: A pymatgen Structure object.
+        result: The result tuple from gen.build_structure().
+
+    Returns:
+        Dictionary with topology_theory, prototype_crystallography, and real_compounds keys,
+        or an error key on failure.
+    """
     SpacegroupAnalyzer = _get_spacegroup_analyzer()
     if not SpacegroupAnalyzer:
         return {"error": "SpacegroupAnalyzer not available"}
@@ -682,8 +852,9 @@ def _get_prototype_doc(structure, result):
         }
 
         return doc
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        logger.debug("Prototype doc generation failed")
+        return {"error": "Prototype doc generation failed"}
 
 
 LAYER_TYPE_INFO = [
@@ -770,10 +941,39 @@ LAYER_TYPE_INFO = [
 ]
 
 
+# Rate limiting storage (in-memory, per-process)
+_rate_limit_store: dict[str, list[float]] = {}
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX_REQUESTS = 100  # per window
+
+
+@app.before_request
+def check_rate_limit():
+    """Simple in-memory rate limiting. Disabled in testing mode."""
+    if app.config.get("TESTING"):
+        return None
+    if not request.path.startswith("/api/"):
+        return None
+    client_ip = request.remote_addr or "unknown"
+    now = time.time()
+    if client_ip not in _rate_limit_store:
+        _rate_limit_store[client_ip] = []
+    _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if now - t < RATE_LIMIT_WINDOW]
+    if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+        return jsonify({"error": "Rate limit exceeded"}), 429
+    _rate_limit_store[client_ip].append(now)
+    return None
+
+
 @app.route("/api/prototypes", methods=["GET"])
-def list_prototypes():
+def list_prototypes() -> Response:
+    """List all prototypes with summary information.
+
+    Returns:
+        JSON response with prototypes list and total count.
+    """
     build_indexes()
-    cached = _get_cached("prototypes_list")
+    cached = _api_cache.get("prototypes_list")
     if cached is not None:
         return jsonify(cached)
     results = []
@@ -804,12 +1004,20 @@ def list_prototypes():
         })
 
     resp = {"prototypes": results, "total": len(results)}
-    _cached_json("prototypes_list", resp, 300)
+    _api_cache.set("prototypes_list", resp, 300)
     return jsonify(resp)
 
 
 @app.route("/api/prototypes/<proto_id>", methods=["GET"])
-def get_prototype(proto_id):
+def get_prototype(proto_id: str) -> Response:
+    """Get detailed information for a specific prototype.
+
+    Args:
+        proto_id: The prototype identifier.
+
+    Returns:
+        JSON response with prototype details, raw materials, and verified materials.
+    """
     build_indexes()
     if proto_id not in prototypes_index:
         return jsonify({"error": f"Prototype '{proto_id}' not found"}), 404
@@ -852,7 +1060,15 @@ def get_prototype(proto_id):
 
 
 @app.route("/api/materials", methods=["GET"])
-def list_materials():
+def list_materials() -> Response:
+    """List materials with optional filtering and pagination.
+
+    Supports filtering by topology, elements, space_group, and formula.
+    Results are paginated.
+
+    Returns:
+        JSON response with materials list, total, page, per_page, and total_pages.
+    """
     build_indexes()
     topology = request.args.get("topology", "").strip()
     elements_param = request.args.get("elements", "").strip()
@@ -909,7 +1125,15 @@ def list_materials():
 
 
 @app.route("/api/materials/<material_id>", methods=["GET"])
-def get_material(material_id):
+def get_material(material_id: str) -> Response:
+    """Get detailed information for a specific material.
+
+    Args:
+        material_id: The material identifier.
+
+    Returns:
+        JSON response with material details and CIF data.
+    """
     build_indexes()
     if material_id not in materials_index:
         return jsonify({"error": f"Material '{material_id}' not found"}), 404
@@ -934,7 +1158,15 @@ def get_material(material_id):
 
 
 @app.route("/api/materials/<material_id>/cif", methods=["GET"])
-def get_material_cif(material_id):
+def get_material_cif(material_id: str) -> Response:
+    """Download the CIF file for a specific material.
+
+    Args:
+        material_id: The material identifier.
+
+    Returns:
+        Plain text response with CIF file content.
+    """
     build_indexes()
     if material_id not in materials_index:
         return jsonify({"error": f"Material '{material_id}' not found"}), 404
@@ -954,7 +1186,12 @@ def get_material_cif(material_id):
 
 
 @app.route("/api/generate", methods=["POST"])
-def generate_structure():
+def generate_structure() -> Response:
+    """Generate a layered structure from input parameters.
+
+    Returns:
+        JSON response with formula, lattice, atom_sites, topology, space_group, and layer_data.
+    """
     try:
         body = request.get_json(force=True)
     except Exception:
@@ -982,11 +1219,17 @@ def generate_structure():
         return jsonify(response)
 
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("generate_structure failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/generate/layer-data", methods=["POST"])
-def generate_layer_data():
+def generate_layer_data() -> Response:
+    """Generate layer data for a layered structure.
+
+    Returns:
+        JSON response with layer_data for 2D plotting.
+    """
     try:
         body = request.get_json(force=True)
     except Exception:
@@ -1001,11 +1244,17 @@ def generate_layer_data():
         layer_data = _get_layer_data(gen, result)
         return jsonify({"success": True, "layer_data": layer_data})
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("generate_layer_data failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/generate/primitive", methods=["POST"])
-def generate_primitive():
+def generate_primitive() -> Response:
+    """Generate primitive cell analysis for a layered structure.
+
+    Returns:
+        JSON response with supercell data and primitive cell analysis.
+    """
     try:
         body = request.get_json(force=True)
     except Exception:
@@ -1041,11 +1290,17 @@ def generate_primitive():
 
         return jsonify(response)
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("generate_primitive failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/generate/coordination", methods=["POST"])
-def generate_coordination():
+def generate_coordination() -> Response:
+    """Generate coordination environment analysis for a layered structure.
+
+    Returns:
+        JSON response with coordination environments for X-O pairs.
+    """
     try:
         body = request.get_json(force=True)
     except Exception:
@@ -1073,11 +1328,17 @@ def generate_coordination():
 
         return jsonify({"success": True, **coord_result})
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("generate_coordination failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/generate/prototype", methods=["POST"])
-def generate_prototype():
+def generate_prototype() -> Response:
+    """Generate prototype document for a layered structure.
+
+    Returns:
+        JSON response with topology_theory and prototype_crystallography.
+    """
     try:
         body = request.get_json(force=True)
     except Exception:
@@ -1099,11 +1360,17 @@ def generate_prototype():
 
         return jsonify({"success": True, **proto_doc})
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("generate_prototype failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/verify-topology", methods=["POST"])
-def verify_topology_endpoint():
+def verify_topology_endpoint() -> Response:
+    """Verify topology by comparing a template CIF against test materials.
+
+    Returns:
+        JSON response with match results for each test material.
+    """
     verify_topology = _get_verify_topology()
     if not verify_topology:
         return jsonify({"error": "verify_topology module not available"}), 501
@@ -1170,11 +1437,17 @@ def verify_topology_endpoint():
 
         return jsonify({"matches": matches})
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("verify_topology_endpoint failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/generate/full", methods=["POST"])
-def generate_full():
+def generate_full() -> Response:
+    """Generate a full analysis including structure, primitive, coordination, and prototype.
+
+    Returns:
+        JSON response with all analysis results combined.
+    """
     try:
         body = request.get_json(force=True)
     except Exception:
@@ -1233,18 +1506,29 @@ def generate_full():
 
         return jsonify(response)
     except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 400
+        logger.error("generate_full failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/lattice-types", methods=["GET"])
-def get_lattice_types():
+def get_lattice_types() -> Response:
+    """Get available lattice/layer type definitions.
+
+    Returns:
+        JSON response with lattice_types list and total count.
+    """
     return jsonify({"lattice_types": LAYER_TYPE_INFO, "total": len(LAYER_TYPE_INFO)})
 
 
 @app.route("/api/classifications", methods=["GET"])
-def get_classifications():
+def get_classifications() -> Response:
+    """Get materials classified by topology, composition, and space group.
+
+    Returns:
+        JSON response with by_topology, by_composition, and by_space_group dicts.
+    """
     build_indexes()
-    cached = _get_cached("classifications")
+    cached = _api_cache.get("classifications")
     if cached is not None:
         return jsonify(cached)
     by_topology = {}
@@ -1289,13 +1573,17 @@ def get_classifications():
         "by_composition": dict(by_composition),
         "by_space_group": dict(by_space_group),
     }
-    _cached_json("classifications", resp, 300)
+    _api_cache.set("classifications", resp, 300)
     return jsonify(resp)
 
 
 @app.route("/api/search", methods=["GET"])
-def search_materials():
-    # TODO: Add rate limiting for this endpoint
+def search_materials() -> Response:
+    """Search materials by query string matching formula, elements, space group, or ID.
+
+    Returns:
+        JSON response with query, results list, and total count.
+    """
     build_indexes()
     q = request.args.get("q", "").strip()
     # Input validation: limit length and strip dangerous characters
@@ -1350,9 +1638,14 @@ def search_materials():
 
 
 @app.route("/api/stats", methods=["GET"])
-def get_stats():
+def get_stats() -> Response:
+    """Get database statistics including material counts and distributions.
+
+    Returns:
+        JSON response with total_materials, verified/raw counts, topology/space_group/element stats.
+    """
     build_indexes()
-    cached = _get_cached("stats")
+    cached = _api_cache.get("stats")
     if cached is not None:
         return jsonify(cached)
     total_materials = len(materials_index)
@@ -1396,14 +1689,19 @@ def get_stats():
         "space_group_stats": space_group_stats,
         "element_counts": dict(sorted(element_counts.items(), key=lambda x: -x[1])),
     }
-    _cached_json("stats", resp, 120)
+    _api_cache.set("stats", resp, 120)
     return jsonify(resp)
 
 
 @app.route("/api/elements", methods=["GET"])
-def get_elements():
+def get_elements() -> Response:
+    """Get all elements with their material counts.
+
+    Returns:
+        JSON response with elements list (sorted by count) and total count.
+    """
     build_indexes()
-    cached = _get_cached("elements")
+    cached = _api_cache.get("elements")
     if cached is not None:
         return jsonify(cached)
     element_counts = {}
@@ -1418,12 +1716,17 @@ def get_elements():
         ],
         "total": len(sorted_elements),
     }
-    _cached_json("elements", resp, 300)
+    _api_cache.set("elements", resp, 300)
     return jsonify(resp)
 
 
 @app.route("/api/db/status", methods=["GET"])
-def db_status():
+def db_status() -> Response:
+    """Get database status summary.
+
+    Returns:
+        JSON response with counts of prototypes, materials, algorithms, tasks, and models.
+    """
     try:
         from models import SessionLocal, Prototype, Material, Algorithm, Task, ModelArtifact
         db = SessionLocal()
@@ -1447,7 +1750,12 @@ def db_status():
 
 
 @app.route("/api/db/migrate", methods=["POST"])
-def db_migrate():
+def db_migrate() -> Response:
+    """Migrate filesystem data into the database.
+
+    Returns:
+        JSON response with migration results.
+    """
     try:
         from models import SessionLocal, init_db, migrate_from_filesystem
         init_db()
@@ -1463,7 +1771,12 @@ def db_migrate():
 
 
 @app.route("/api/algorithms", methods=["GET"])
-def list_algorithms():
+def list_algorithms() -> Response:
+    """List all active algorithms.
+
+    Returns:
+        JSON response with algorithms list and total count.
+    """
     try:
         from models import SessionLocal, Algorithm
         db = SessionLocal()
@@ -1494,7 +1807,12 @@ def list_algorithms():
 
 
 @app.route("/api/algorithms", methods=["POST"])
-def register_algorithm():
+def register_algorithm() -> Response:
+    """Register a new algorithm.
+
+    Returns:
+        JSON response with the new algorithm_id.
+    """
     try:
         from models import SessionLocal
         from task_worker import register_external_algorithm
@@ -1506,7 +1824,15 @@ def register_algorithm():
 
 
 @app.route("/api/algorithms/<algo_id>", methods=["DELETE"])
-def deactivate_algorithm(algo_id):
+def deactivate_algorithm(algo_id: str) -> Response:
+    """Deactivate an algorithm by setting is_active to False.
+
+    Args:
+        algo_id: The algorithm identifier.
+
+    Returns:
+        JSON response indicating success or failure.
+    """
     try:
         from models import SessionLocal, Algorithm
         db = SessionLocal()
@@ -1524,7 +1850,12 @@ def deactivate_algorithm(algo_id):
 
 
 @app.route("/api/tasks", methods=["POST"])
-def create_task():
+def create_task() -> Response:
+    """Create a new task for an algorithm.
+
+    Returns:
+        JSON response with the new task_id.
+    """
     try:
         from task_worker import submit_task
         data = request.get_json(force=True)
@@ -1540,7 +1871,15 @@ def create_task():
 
 
 @app.route("/api/tasks/<task_id>", methods=["GET"])
-def get_task(task_id):
+def get_task(task_id: str) -> Response:
+    """Get the status of a specific task.
+
+    Args:
+        task_id: The task identifier.
+
+    Returns:
+        JSON response with task status details.
+    """
     try:
         from task_worker import get_task_status
         result = get_task_status(task_id)
@@ -1552,7 +1891,12 @@ def get_task(task_id):
 
 
 @app.route("/api/tasks", methods=["GET"])
-def list_tasks():
+def list_tasks() -> Response:
+    """List tasks with optional filtering by status and algorithm_id.
+
+    Returns:
+        JSON response with tasks list and total count.
+    """
     try:
         from models import SessionLocal, Task, Algorithm
         db = SessionLocal()
@@ -1594,7 +1938,12 @@ def list_tasks():
 
 
 @app.route("/api/models", methods=["GET"])
-def list_models_db():
+def list_models_db() -> Response:
+    """List all active model artifacts.
+
+    Returns:
+        JSON response with models list and total count.
+    """
     try:
         from models import SessionLocal, ModelArtifact
         db = SessionLocal()
@@ -1623,7 +1972,12 @@ def list_models_db():
 
 
 @app.route("/api/db/prototypes", methods=["GET"])
-def db_list_prototypes():
+def db_list_prototypes() -> Response:
+    """List prototypes from the database with optional crystal_system filter.
+
+    Returns:
+        JSON response with prototypes list and total count.
+    """
     try:
         from models import SessionLocal, Prototype
         db = SessionLocal()
@@ -1658,7 +2012,15 @@ def db_list_prototypes():
 
 
 @app.route("/api/db/prototypes/<prototype_id>", methods=["GET"])
-def db_get_prototype(prototype_id):
+def db_get_prototype(prototype_id: str) -> Response:
+    """Get detailed information for a specific database prototype.
+
+    Args:
+        prototype_id: The prototype identifier.
+
+    Returns:
+        JSON response with prototype details and materials count.
+    """
     try:
         from models import SessionLocal, Prototype, Material
         db = SessionLocal()
@@ -1691,7 +2053,15 @@ def db_get_prototype(prototype_id):
 
 
 @app.route("/api/db/materials", methods=["GET"])
-def db_list_materials():
+def db_list_materials() -> Response:
+    """List materials from the database with filtering and pagination.
+
+    Supports filtering by topology_id, space_group, is_verified, formula, and source.
+    Results are paginated and sortable.
+
+    Returns:
+        JSON response with materials list, total, page, page_size, and total_pages.
+    """
     try:
         from models import SessionLocal, Material
         db = SessionLocal()
@@ -1708,6 +2078,8 @@ def db_list_materials():
                 query = query.filter_by(is_verified=is_verified.lower() == "true")
             formula = request.args.get("formula")
             if formula:
+                formula = formula.strip()[:100]  # Limit length
+                formula = re.sub(r"[;%\\_]", "", formula)  # Remove dangerous chars for LIKE
                 query = query.filter(Material.formula.like(f"%{formula}%"))
             source = request.args.get("source")
             if source:
@@ -1769,7 +2141,15 @@ def db_list_materials():
 
 
 @app.route("/api/db/materials/<material_id>", methods=["GET"])
-def db_get_material(material_id):
+def db_get_material(material_id: str) -> Response:
+    """Get detailed information for a specific database material.
+
+    Args:
+        material_id: The material identifier.
+
+    Returns:
+        JSON response with material details including CIF content and metadata.
+    """
     try:
         from models import SessionLocal, Material
         db = SessionLocal()
@@ -1808,7 +2188,15 @@ def db_get_material(material_id):
 
 
 @app.route("/api/db/materials/<material_id>", methods=["DELETE"])
-def db_delete_material(material_id):
+def db_delete_material(material_id: str) -> Response:
+    """Delete a material from the database.
+
+    Args:
+        material_id: The material identifier.
+
+    Returns:
+        JSON response indicating success or failure.
+    """
     try:
         from models import SessionLocal, Material
         db = SessionLocal()
@@ -1826,7 +2214,12 @@ def db_delete_material(material_id):
 
 
 @app.route("/api/db/materials/batch", methods=["POST"])
-def db_batch_update_materials():
+def db_batch_update_materials() -> Response:
+    """Batch update materials (verify, unverify, or update fields).
+
+    Returns:
+        JSON response with the number of updated records.
+    """
     try:
         from models import SessionLocal, Material
         db = SessionLocal()
@@ -1865,7 +2258,12 @@ def db_batch_update_materials():
 
 
 @app.route("/api/db/stats", methods=["GET"])
-def db_detailed_stats():
+def db_detailed_stats() -> Response:
+    """Get detailed database statistics.
+
+    Returns:
+        JSON response with materials, prototypes, topology, space group, tasks, algorithms, and models stats.
+    """
     try:
         from models import SessionLocal, Prototype, Material, Algorithm, Task, ModelArtifact
         db = SessionLocal()
@@ -1909,7 +2307,12 @@ def db_detailed_stats():
 
 
 @app.route("/api/plugins", methods=["GET"])
-def list_plugins():
+def list_plugins() -> Response:
+    """List all active plugins (algorithms).
+
+    Returns:
+        JSON response with plugins list.
+    """
     try:
         from models import SessionLocal, Algorithm
         db = SessionLocal()
@@ -1939,7 +2342,12 @@ def list_plugins():
 
 
 @app.route("/api/plugins", methods=["POST"])
-def register_plugin():
+def register_plugin() -> Response:
+    """Register a new plugin (algorithm).
+
+    Returns:
+        JSON response with the new algorithm_id.
+    """
     try:
         from task_worker import register_external_algorithm
         data = request.get_json(force=True)
@@ -1954,7 +2362,15 @@ def register_plugin():
 
 
 @app.route("/api/plugins/<algo_id>", methods=["DELETE"])
-def deactivate_plugin(algo_id):
+def deactivate_plugin(algo_id: str) -> Response:
+    """Deactivate a plugin by setting is_active to False.
+
+    Args:
+        algo_id: The plugin/algorithm identifier.
+
+    Returns:
+        JSON response indicating success or failure.
+    """
     try:
         from models import SessionLocal, Algorithm
         db = SessionLocal()
@@ -1972,7 +2388,15 @@ def deactivate_plugin(algo_id):
 
 
 @app.route("/api/plugins/<algo_id>/execute", methods=["POST"])
-def execute_plugin(algo_id):
+def execute_plugin(algo_id: str) -> Response:
+    """Execute a plugin by submitting a task.
+
+    Args:
+        algo_id: The plugin/algorithm identifier.
+
+    Returns:
+        JSON response with the task_id.
+    """
     try:
         from task_worker import submit_task
         data = request.get_json(force=True) or {}
@@ -1985,7 +2409,12 @@ def execute_plugin(algo_id):
 
 
 @app.route("/api/plugins/discover", methods=["POST"])
-def discover_plugins_route():
+def discover_plugins_route() -> Response:
+    """Discover available plugins.
+
+    Returns:
+        JSON response with discovered plugins list and count.
+    """
     try:
         from cgcpt_plugin import discover_plugins
         plugin_dir = request.get_json(force=True).get("plugin_dir") if request.is_json else None
@@ -1996,7 +2425,12 @@ def discover_plugins_route():
 
 
 @app.route("/api/plugins/discovered", methods=["GET"])
-def list_discovered_plugins():
+def list_discovered_plugins() -> Response:
+    """List all discovered plugins from the registry.
+
+    Returns:
+        JSON response with plugins list and count.
+    """
     try:
         from cgcpt_plugin import get_plugin_registry
         registry = get_plugin_registry()
@@ -2010,7 +2444,12 @@ def list_discovered_plugins():
 
 
 @app.route("/api/plugins/register-all", methods=["POST"])
-def register_all_discovered():
+def register_all_discovered() -> Response:
+    """Register all discovered plugins.
+
+    Returns:
+        JSON response with registered plugin IDs and count.
+    """
     try:
         from cgcpt_plugin import discover_plugins, get_plugin_registry
         from task_worker import register_external_algorithm
@@ -2031,7 +2470,17 @@ def register_all_discovered():
 # ADMIN_USER and ADMIN_PASS are now imported from config module
 
 
-def check_auth(request):
+def check_auth(request: Any) -> bool:
+    """Check if the request has valid admin authentication.
+
+    Supports Bearer token (base64-encoded user:password).
+
+    Args:
+        request: The Flask request object.
+
+    Returns:
+        True if authentication succeeds, False otherwise.
+    """
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         token = auth[7:]
@@ -2047,7 +2496,12 @@ def check_auth(request):
 
 
 @app.route("/api/auth/login", methods=["POST"])
-def auth_login():
+def auth_login() -> Response:
+    """Authenticate and return a Bearer token.
+
+    Returns:
+        JSON response with success status and token.
+    """
     data = request.get_json(force=True)
     username = data.get("username", "")
     password = data.get("password", "")
@@ -2059,14 +2513,26 @@ def auth_login():
 
 
 @app.route("/api/auth/check", methods=["GET"])
-def auth_check():
+def auth_check() -> Response:
+    """Check if the current request is authenticated.
+
+    Returns:
+        JSON response with authentication status.
+    """
     if check_auth(request):
         return jsonify({"success": True, "user": ADMIN_USER})
     return jsonify({"success": False, "error": "未授权"}), 401
 
 
 @app.route("/api/models/upload", methods=["POST"])
-def upload_model():
+def upload_model() -> Response:
+    """Upload a model artifact file.
+
+    Requires admin authentication. Validates the model file and stores metadata in the database.
+
+    Returns:
+        JSON response with model_id, model_class, file_path, and metrics.
+    """
     if not check_auth(request):
         return jsonify({"success": False, "error": "需要管理员权限"}), 401
     try:
@@ -2149,37 +2615,16 @@ def upload_model():
         return jsonify({"success": False, "error": str(e)})
 
 
-@app.route("/api/models", methods=["GET"])
-def list_models():
-    try:
-        from models import SessionLocal, ModelArtifact
-        db = SessionLocal()
-        try:
-            artifacts = db.query(ModelArtifact).all()
-            return jsonify({
-                "success": True,
-                "models": [
-                    {
-                        "id": a.id,
-                        "name": a.name,
-                        "model_type": a.model_type,
-                        "metrics": a.metrics,
-                        "feature_keys": a.feature_keys,
-                        "file_path": a.file_path,
-                        "is_active": a.is_active,
-                        "created_at": a.created_at.isoformat() if a.created_at else None,
-                    }
-                    for a in artifacts
-                ],
-            })
-        finally:
-            db.close()
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-
 @app.route("/api/models/<model_id>", methods=["DELETE"])
-def delete_model(model_id):
+def delete_model(model_id: str) -> Response:
+    """Delete a model artifact and its file.
+
+    Args:
+        model_id: The model identifier.
+
+    Returns:
+        JSON response indicating success or failure.
+    """
     if not check_auth(request):
         return jsonify({"success": False, "error": "需要管理员权限"}), 401
     try:
@@ -2201,7 +2646,15 @@ def delete_model(model_id):
 
 
 @app.route("/api/models/<model_id>/activate", methods=["POST"])
-def activate_model(model_id):
+def activate_model(model_id: str) -> Response:
+    """Activate a model artifact, deactivating others of the same type.
+
+    Args:
+        model_id: The model identifier.
+
+    Returns:
+        JSON response indicating success or failure.
+    """
     if not check_auth(request):
         return jsonify({"success": False, "error": "需要管理员权限"}), 401
     try:
@@ -2226,12 +2679,24 @@ def activate_model(model_id):
 
 
 @app.errorhandler(404)
-def not_found(e):
+def not_found(e: Any) -> Response:
+    """Handle 404 Not Found errors."""
     return jsonify({"error": "Not found"}), 404
 
 
+@app.errorhandler(405)
+def method_not_allowed(e: Any) -> Response:
+    """Handle 405 Method Not Allowed errors."""
+    return jsonify({"error": "Method not allowed"}), 405
+
+
 @app.route("/api/stacking/scan", methods=["POST"])
-def stacking_scan():
+def stacking_scan() -> Response:
+    """Scan database CIFs for stacking analysis.
+
+    Returns:
+        JSON response with scanned samples and count.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2256,7 +2721,12 @@ def stacking_scan():
 
 
 @app.route("/api/stacking/train", methods=["POST"])
-def stacking_train():
+def stacking_train() -> Response:
+    """Train a stacking prediction model.
+
+    Returns:
+        JSON response with training results.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2288,7 +2758,12 @@ def stacking_train():
 
 
 @app.route("/api/stacking/train/stream", methods=["POST"])
-def stacking_train_stream():
+def stacking_train_stream() -> Response:
+    """Train a stacking model with SSE progress events.
+
+    Returns:
+        Server-Sent Events stream with progress, result, and error events.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2305,10 +2780,10 @@ def stacking_train_stream():
 
     ev_queue = queue_mod.Queue()
 
-    def on_progress(info):
+    def on_progress(info: dict) -> None:
         ev_queue.put(("progress", info))
 
-    def run_training():
+    def run_training() -> None:
         try:
             result = sa.train_decision_tree(
                 test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
@@ -2345,7 +2820,12 @@ def stacking_train_stream():
 
 
 @app.route("/api/stacking/predict", methods=["POST"])
-def stacking_predict():
+def stacking_predict() -> Response:
+    """Predict stacking sequence using a trained model.
+
+    Returns:
+        JSON response with prediction results.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2378,7 +2858,12 @@ def stacking_predict():
 
 
 @app.route("/api/stacking/upload", methods=["POST"])
-def stacking_upload():
+def stacking_upload() -> Response:
+    """Upload a CIF file for stacking analysis.
+
+    Returns:
+        JSON response with parsed CIF data, features, and layer analysis.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2414,7 +2899,12 @@ def stacking_upload():
 
 
 @app.route("/api/stacking/models", methods=["GET"])
-def stacking_models():
+def stacking_models() -> Response:
+    """List available stacking models.
+
+    Returns:
+        JSON response with models list.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2426,7 +2916,15 @@ def stacking_models():
 
 
 @app.route("/api/stacking/models/<model_id>", methods=["DELETE"])
-def stacking_delete_model(model_id):
+def stacking_delete_model(model_id: str) -> Response:
+    """Delete a stacking model.
+
+    Args:
+        model_id: The model identifier.
+
+    Returns:
+        JSON response indicating success or failure.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2438,7 +2936,12 @@ def stacking_delete_model(model_id):
 
 
 @app.route("/api/stacking/self_improve", methods=["POST"])
-def stacking_self_improve():
+def stacking_self_improve() -> Response:
+    """Run self-improvement iterations on stacking models.
+
+    Returns:
+        JSON response with improvement results.
+    """
     try:
         import self_improver as si
     except ImportError:
@@ -2469,7 +2972,12 @@ def stacking_self_improve():
 
 
 @app.route("/api/stacking/improvement_history", methods=["GET"])
-def stacking_improvement_history():
+def stacking_improvement_history() -> Response:
+    """Get the improvement trajectory history.
+
+    Returns:
+        JSON response with trajectory data and iteration count.
+    """
     try:
         import self_improver as si
         trajectory = si.get_improvement_trajectory()
@@ -2481,7 +2989,15 @@ def stacking_improvement_history():
 
 
 @app.route("/api/stacking/error_analysis/<model_id>", methods=["GET"])
-def stacking_error_analysis(model_id):
+def stacking_error_analysis(model_id: str) -> Response:
+    """Analyze prediction errors for a specific model.
+
+    Args:
+        model_id: The model identifier.
+
+    Returns:
+        JSON response with error analysis results.
+    """
     try:
         import self_improver as si
         result = si.analyze_errors(model_id)
@@ -2494,7 +3010,12 @@ def stacking_error_analysis(model_id):
 
 
 @app.route("/api/stacking/analyze", methods=["POST"])
-def stacking_analyze():
+def stacking_analyze() -> Response:
+    """Analyze a CIF text for stacking features.
+
+    Returns:
+        JSON response with formula, space_group, lattice, features, and layer_analysis.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2527,7 +3048,12 @@ def stacking_analyze():
 
 
 @app.route("/api/stacking/batch_predict", methods=["POST"])
-def stacking_batch_predict():
+def stacking_batch_predict() -> Response:
+    """Batch predict stacking sequences using a trained model.
+
+    Returns:
+        JSON response with per-sequence predictions and overall accuracy.
+    """
     sa = _get_stacking_analyzer()
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
@@ -2599,7 +3125,19 @@ def stacking_batch_predict():
         return jsonify({"success": False, "error": str(e)})
 
 
-def _auto_classify_topology(atom_sites, lattice):
+def _auto_classify_topology(atom_sites: list[dict], lattice: dict) -> tuple[Optional[str], float]:
+    """Automatically classify the topology of a structure based on atom sites and lattice.
+
+    Uses heuristics based on X/O ratios, number of distinct layers, and lattice parameters
+    to suggest a likely topology.
+
+    Args:
+        atom_sites: List of atom site dictionaries with element and fractional coordinates.
+        lattice: Dictionary with lattice parameters (a, b, c, alpha, beta, gamma).
+
+    Returns:
+        A tuple of (suggested_topology_string, confidence_score).
+    """
     if not atom_sites or len(atom_sites) < 3:
         return None, 0.0
 
@@ -2654,7 +3192,15 @@ def _auto_classify_topology(atom_sites, lattice):
 
 
 @app.route("/api/import/preview", methods=["POST"])
-def import_preview():
+def import_preview() -> Response:
+    """Preview CIF files before import.
+
+    Parses uploaded CIF files and returns material info, suggested topology,
+    and conflict detection without actually importing.
+
+    Returns:
+        JSON response with preview results for each file.
+    """
     build_indexes()
     try:
         if 'files' not in request.files:
@@ -2671,7 +3217,6 @@ def import_preview():
 
             cif_text = f.read().decode('utf-8', errors='ignore')
 
-            import tempfile, os as _os
             with tempfile.NamedTemporaryFile(suffix='.cif', delete=False, mode='w') as tmp:
                 tmp.write(cif_text)
                 tmp_path = Path(tmp.name)
@@ -2681,7 +3226,7 @@ def import_preview():
             except Exception as e:
                 cif_data = None
             finally:
-                _os.unlink(tmp_path)
+                os.unlink(tmp_path)
 
             if not cif_data:
                 results.append({"filename": f.filename, "error": "Failed to parse CIF file"})
@@ -2726,12 +3271,20 @@ def import_preview():
             "errors": sum(1 for r in results if "error" in r),
         })
     except Exception as e:
-        logger.error("Exception occurred", exc_info=True)
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        logger.error("import_preview failed: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/import", methods=["POST"])
-def import_materials():
+def import_materials() -> Response:
+    """Import materials from preview data.
+
+    Writes CIF files to the database directory and updates in-memory indexes.
+    Invalidates relevant API caches.
+
+    Returns:
+        JSON response with imported, skipped, and error lists.
+    """
     global _indexes_built
     build_indexes()
     try:
@@ -2799,10 +3352,7 @@ def import_materials():
                 "path": str(cif_path.relative_to(DATABASE_DIR)),
             })
 
-        _cached_json("prototypes_list", None, 0)
-        _cached_json("stats", None, 0)
-        _cached_json("classifications", None, 0)
-        _cached_json("elements", None, 0)
+        _api_cache.invalidate("prototypes_list", "stats", "classifications", "elements")
 
         return jsonify({
             "success": True,
@@ -2813,12 +3363,17 @@ def import_materials():
             "total_materials_now": len(materials_index),
         })
     except Exception as e:
-        logger.error("Exception occurred", exc_info=True)
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        logger.error("import_materials failed: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/import/templates", methods=["GET"])
-def import_templates():
+def import_templates() -> Response:
+    """Get available import templates (prototypes).
+
+    Returns:
+        JSON response with templates list and total count.
+    """
     templates = []
     for proto_id, proto in prototypes_index.items():
         data = proto["data"]
@@ -2837,13 +3392,18 @@ def import_templates():
 
 
 @app.errorhandler(500)
-def internal_error(e):
+def internal_error(e: Any) -> Response:
+    """Handle 500 Internal Server Error."""
     return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/health", methods=["GET"])
-def health_check():
-    import os
+def health_check() -> Response:
+    """Health check endpoint.
+
+    Returns:
+        JSON response with status, uptime, index info, and memory usage.
+    """
     uptime = time.time() - _start_time
     try:
         import psutil
@@ -2863,7 +3423,16 @@ def health_check():
 
 
 @app.after_request
-def add_cache_headers(response):
+def add_cache_headers(response: Response) -> Response:
+    """Add cache control and API version headers to responses.
+
+    Args:
+        response: The Flask response object.
+
+    Returns:
+        The modified response with appropriate headers.
+    """
+    response.headers["X-API-Version"] = "1.0.0"
     if request.path.startswith("/api/health"):
         response.headers["Cache-Control"] = "no-cache"
     elif request.path.startswith("/api/stats") or request.path.startswith("/api/elements") or request.path.startswith("/api/lattice-types"):

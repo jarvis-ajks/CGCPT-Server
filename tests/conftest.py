@@ -116,8 +116,9 @@ def app():
             api_server.space_group_to_materials = defaultdict(list)
             api_server.formula_to_materials = defaultdict(list)
             api_server.all_elements = set()
-            api_server._api_cache = {}
-            api_server._api_cache_ttl = {}
+            api_server._api_cache.invalidate_all()
+            # Reset rate limiter for tests
+            api_server._rate_limit_store.clear()
 
             app = api_server.app
             app.config["TESTING"] = True
