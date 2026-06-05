@@ -1,0 +1,104 @@
+# Version control
+.git
+.gitignore
+
+# CI/CD
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv
+env
+*.egg-info
+dist
+build
+.eggs
+*.egg
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+coverage.xml
+
+# Node.js
+web/node_modules
+web/.vite
+web/dist
+npm-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+*.local
+*.pem
+*.key
+*.crt
+
+# Docker
+docker-compose.override.yml
+docker-compose.dev.yml
+
+# Database (large data files, mount at runtime)
+database/
+
+# Uploads and models (mount at runtime)
+uploads/
+models/
+
+# Logs
+logs/
+*.log
+
+# Documentation
+*.md
+!README.md
+LICENSE
+NOTICE
+CONTEXT.md
+SYSTEM_DOCS.md
+CHANGELOG.md
+CONTRIBUTING.md
+
+# Temporary and debug files
+tmp/
+temp/
+_*.py
+_*.js
+check_*.py
+_deploy_*.py
+_fix_*.py
+_diagnose*.py
+_opt_*.py
+_test_*.py
+_verify_*.py
+_run_*.py
+_gen_*.py
+_update_*.py
+_full_*.py
+_show_*.py
+_ssh_*.py
+_local_*.py
+_port_*.py
+accept_hostkey.ps1
+create-watchdog.js
+cron-gunicorn.js
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Nginx config (mount at runtime)
+nginx/

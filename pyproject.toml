@@ -1,0 +1,70 @@
+[project]
+name = "cgcpt-server"
+version = "1.0.0"
+description = "CGCPT Server - Crystal Glass-Ceramic Phase Transition prediction and analysis platform"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.9"
+authors = [
+    {name = "CGCPT Team"},
+]
+keywords = ["crystal", "glass-ceramic", "phase-transition", "materials-science", "pymatgen"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+dependencies = [
+    "flask",
+    "flask-cors",
+    "numpy",
+    "pymatgen",
+    "sqlalchemy",
+    "pymysql",
+    "scikit-learn",
+    "joblib",
+    "gunicorn",
+    "psutil",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "ruff",
+    "mypy",
+]
+
+[project.urls]
+Repository = "https://github.com/CGCPT/CGCPT-Server"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+include = ["*"]
+exclude = ["tests*", "docs*", "frontend*"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

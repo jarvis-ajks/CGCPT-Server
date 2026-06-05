@@ -1,0 +1,77 @@
+{
+  "iteration": 1,
+  "model_id": "self_improve_iter1_65117",
+  "strategy": "feature_engineering+bayesian_optimization",
+  "test_accuracy": 0.8481,
+  "train_accuracy": 0.8872,
+  "cv_mean": 0.8724,
+  "cv_std": 0.0035,
+  "overfit": 0.0392,
+  "n_samples": 11187,
+  "n_features": 26,
+  "feature_engineering": true,
+  "hard_mining": false,
+  "bayesian": true,
+  "ensemble": false,
+  "ensemble_result": null,
+  "error_analysis": {
+    "total_errors": 340,
+    "total_samples": 2238,
+    "error_rate": 0.1519,
+    "mode_error_rates": {
+      "XO": 0.3265,
+      "X": 0.3206,
+      "XB3O6": 0.3041,
+      "XO3": 0.2569,
+      "XBO3": 0.2567,
+      "XO2": 0.2564,
+      "BO3": 0.0333
+    },
+    "shift_confusion": {
+      "B": {
+        "A": 141,
+        "C": 36
+      },
+      "A": {
+        "B": 85,
+        "C": 24
+      },
+      "C": {
+        "B": 31,
+        "A": 23
+      }
+    },
+    "hardest_modes": [
+      "X",
+      "XO",
+      "XB3O6",
+      "XO3",
+      "XBO3"
+    ],
+    "high_variance_features": [
+      {
+        "feature": "next_mode",
+        "variance": 7.382042
+      },
+      {
+        "feature": "prev_mode",
+        "variance": 7.632215
+      },
+      {
+        "feature": "feat_20",
+        "variance": 410.489481
+      },
+      {
+        "feature": "feat_19",
+        "variance": 416.388097
+      },
+      {
+        "feature": "feat_21",
+        "variance": 799.066471
+      }
+    ]
+  },
+  "is_ensemble": false,
+  "id": "iter_1_1780624284",
+  "saved_at": "2026-06-05T01:51:24.179037"
+}

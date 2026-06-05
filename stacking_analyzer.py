@@ -712,55 +712,252 @@ def get_layer_type_labels(samples):
     return labels
 
 
-def train_decision_tree(samples, test_ratio=0.2, max_depth=None, random_state=42,
-                        model_type="dt", n_iterations=10, cv_folds=5,
-                        progress_callback=None, data_dir=None):
+MODE_LIST = ["XO", "XO2", "XO3", "X", "XBO3", "BO3", "XB3O6", "M6", "M7", "T"]
+MODE_TO_IDX = {m: i for i, m in enumerate(MODE_LIST)}
+SHIFT_TO_IDX = {"A": 0, "B": 1, "C": 2}
+IDX_TO_SHIFT = {0: "A", 1: "B", 2: "C"}
+
+MAIN_MODES = {"XO", "XO2", "XO3", "X", "XBO3", "BO3", "XB3O6"}
+X_MODES_SET = {"XO", "XO2", "XO3", "X", "XBO3", "XB3O6"}
+M_MODES_SET = {"M6", "M7"}
+
+STACK_SEQUENCES = ["ABC", "AB", "ACB", "AAB", "ABB", "AA", "ABCA", "ABCAB", "ABCB"]
+
+STACKING_FEATURE_NAMES = [
+    "current_mode",
+    "is_main_layer",
+    "is_x_layer",
+    "is_m_layer",
+    "is_t_layer",
+    "prev_mode",
+    "next_mode",
+    "prev_is_main",
+    "next_is_main",
+    "prev_is_xb3o6",
+    "next_is_xb3o6",
+    "lower_main_shift",
+    "upper_main_shift",
+    "between_xb3o6",
+    "n_main_in_seq",
+    "n_x_in_seq",
+    "seq_len",
+    "x_layer_position",
+    "prev_x_shift",
+]
+
+
+def _is_valid_layer_sequence(modes):
+    if not modes:
+        return False
+    has_main = any(m in MAIN_MODES for m in modes)
+    if not has_main:
+        return False
+    for i, m in enumerate(modes):
+        if m in M_MODES_SET:
+            left = modes[(i - 1) % len(modes)]
+            right = modes[(i + 1) % len(modes)]
+            if left not in MAIN_MODES and right not in MAIN_MODES:
+                return False
+    return True
+
+
+def _generate_layer_sequences():
+    import itertools
+    main_pool = ["XO3", "XO2", "XO", "XBO3", "XB3O6", "BO3", "X"]
+    m_pool = ["M7", "M6"]
+    sequences = []
+
+    for n_main in range(2, 6):
+        for main_combo in itertools.combinations_with_replacement(main_pool, n_main):
+            for perm in set(itertools.permutations(main_combo)):
+                for n_m in range(0, min(3, n_main)):
+                    for m_positions in itertools.combinations(range(1, len(perm)), n_m):
+                        modes = list(perm)
+                        offset = 0
+                        for pos in m_positions:
+                            m_type = m_pool[np.random.randint(0, len(m_pool))]
+                            modes.insert(pos + offset, m_type)
+                            offset += 1
+                        if _is_valid_layer_sequence(modes):
+                            sequences.append(tuple(modes))
+
+    unique = list(set(sequences))
+    return unique
+
+
+def _extract_features_for_layer(layer_modes, shift_sequence, idx, gen):
+    n = len(layer_modes)
+    mode = layer_modes[idx]
+    prev_mode = layer_modes[(idx - 1) % n]
+    next_mode = layer_modes[(idx + 1) % n]
+
+    is_main = 1 if mode in MAIN_MODES else 0
+    is_x = 1 if mode in X_MODES_SET else 0
+    is_m = 1 if mode in M_MODES_SET else 0
+    is_t = 1 if mode == "T" else 0
+
+    prev_is_main = 1 if prev_mode in MAIN_MODES else 0
+    next_is_main = 1 if next_mode in MAIN_MODES else 0
+    prev_is_xb3o6 = 1 if prev_mode == "XB3O6" else 0
+    next_is_xb3o6 = 1 if next_mode == "XB3O6" else 0
+
+    lower_main_shift = -1
+    upper_main_shift = -1
+    search = (idx - 1) % n
+    steps = 0
+    while steps < n:
+        if layer_modes[search] in MAIN_MODES:
+            lower_main_shift = SHIFT_TO_IDX.get(shift_sequence[search], -1)
+            break
+        search = (search - 1) % n
+        steps += 1
+
+    search = (idx + 1) % n
+    steps = 0
+    while steps < n:
+        if layer_modes[search] in MAIN_MODES:
+            upper_main_shift = SHIFT_TO_IDX.get(shift_sequence[search], -1)
+            break
+        search = (search + 1) % n
+        steps += 1
+
+    between_xb3o6 = 0
+    if mode in M_MODES_SET:
+        try:
+            between_xb3o6 = 1 if gen.is_m_layer_between_xb3o6(idx, layer_modes) else 0
+        except Exception:
+            between_xb3o6 = 0
+
+    n_main_in_seq = sum(1 for m in layer_modes if m in MAIN_MODES)
+    n_x_in_seq = sum(1 for m in layer_modes if m in X_MODES_SET)
+    seq_len = n
+
+    x_layer_position = 0
+    for k in range(idx):
+        if layer_modes[k] in X_MODES_SET:
+            x_layer_position += 1
+    if mode not in X_MODES_SET:
+        x_layer_position = -1
+
+    prev_x_shift = -1
+    search = (idx - 1) % n
+    steps = 0
+    while steps < n:
+        if layer_modes[search] in X_MODES_SET and shift_sequence[search] is not None:
+            prev_x_shift = SHIFT_TO_IDX.get(shift_sequence[search], -1)
+            break
+        search = (search - 1) % n
+        steps += 1
+
+    return [
+        MODE_TO_IDX.get(mode, 0),
+        is_main,
+        is_x,
+        is_m,
+        is_t,
+        MODE_TO_IDX.get(prev_mode, 0),
+        MODE_TO_IDX.get(next_mode, 0),
+        prev_is_main,
+        next_is_main,
+        prev_is_xb3o6,
+        next_is_xb3o6,
+        lower_main_shift,
+        upper_main_shift,
+        between_xb3o6,
+        n_main_in_seq,
+        n_x_in_seq,
+        seq_len,
+        x_layer_position,
+        prev_x_shift,
+    ]
+
+
+def _generate_stacking_training_data(max_sequences=500):
+    from layer_generator import LayeredXOGenerator
+    gen = LayeredXOGenerator(enable_t=True)
+    sequences = _generate_layer_sequences()
+
+    if len(sequences) > max_sequences:
+        indices = np.random.choice(len(sequences), max_sequences, replace=False)
+        sequences = [sequences[i] for i in indices]
+
+    X_data = []
+    y_data = []
+
+    for layer_modes in sequences:
+        layer_modes = list(layer_modes)
+        n_x = sum(1 for m in layer_modes if m in X_MODES_SET)
+        if n_x == 0:
+            continue
+
+        for stack_seq in STACK_SEQUENCES:
+            try:
+                shift_seq, _ = gen.build_full_shift_sequence_without_T(layer_modes, stack_seq)
+
+                layer_angles = [0.0] * len(layer_modes)
+                layer_dxs = [0.0] * len(layer_modes)
+                layer_dys = [0.0] * len(layer_modes)
+                alphas = [1.0] * sum(1 for m in layer_modes if m in MAIN_MODES)
+                z_seq, _ = gen.build_z_sequence_without_T(layer_modes, alphas)
+
+                if gen.enable_t:
+                    result = gen.insert_T_layers(
+                        layer_modes, shift_seq, z_seq, layer_angles, layer_dxs, layer_dys
+                    )
+                    final_modes = result[0]
+                    final_shifts = result[1]
+                else:
+                    final_modes = layer_modes
+                    final_shifts = shift_seq
+
+                for i in range(len(final_modes)):
+                    features = _extract_features_for_layer(final_modes, final_shifts, i, gen)
+                    label = SHIFT_TO_IDX.get(final_shifts[i], -1)
+                    if label >= 0:
+                        X_data.append(features)
+                        y_data.append(label)
+
+            except Exception:
+                continue
+
+    return np.array(X_data), np.array(y_data)
+
+
+def train_decision_tree(samples=None, test_ratio=0.2, max_depth=10, random_state=42,
+                        model_type="stacking_dt", n_iterations=1, cv_folds=5,
+                        progress_callback=None, data_dir=None, max_sequences=500):
     sk = _ensure_sklearn()
     if not sk:
         return {"success": False, "error": "scikit-learn未安装，请运行: pip install scikit-learn"}
 
-    if len(samples) < 5:
-        return {"success": False, "error": f"样本数不足({len(samples)})，至少需要5个样本"}
+    try:
+        from layer_generator import LayeredXOGenerator
+    except ImportError:
+        return {"success": False, "error": "layer_generator模块未找到，无法生成训练数据"}
 
-    feature_keys_all = sorted(samples[0]["features"].keys())
-    numeric_keys = [k for k in feature_keys_all if k != "layer_type_seq"]
-    feature_keys = numeric_keys
+    if progress_callback:
+        progress_callback({
+            "phase": "generating_data",
+            "message": "正在使用LayeredXOGenerator生成堆垛训练数据...",
+        })
 
-    X = []
-    y = []
-    valid_samples = []
-    layer_seqs = []
+    X, y = _generate_stacking_training_data(max_sequences=max_sequences)
 
-    for s in samples:
-        fv = []
-        valid = True
-        for k in feature_keys:
-            v = s["features"].get(k)
-            if v is None or (isinstance(v, float) and math.isnan(v)):
-                valid = False
-                break
-            fv.append(float(v))
-        if valid:
-            X.append(fv)
-            y.append(s["topology"])
-            valid_samples.append(s)
-            layer_seqs.append(s["features"].get("layer_type_seq", ""))
+    if len(X) < 100:
+        return {"success": False, "error": f"生成的训练样本不足({len(X)})，至少需要100个样本"}
 
-    if len(set(y)) < 2:
-        return {"success": False, "error": f"类别数不足({len(set(y))})，至少需要2个不同类别"}
-
-    X = np.array(X)
-    y = np.array(y)
-
-    class_counts = Counter(y)
+    n_classes = len(set(y))
+    class_counts = Counter(y.tolist())
     min_class_count = min(class_counts.values())
-    n_classes = len(class_counts)
 
-    for cls, cnt in class_counts.items():
-        if cnt < 3:
-            return {"success": False, "error": f"类别 '{cls}' 样本数不足({cnt})，每个类别至少需要3个样本"}
-
-    actual_test_ratio = max(0.1, min(0.5, test_ratio))
+    if progress_callback:
+        progress_callback({
+            "phase": "data_ready",
+            "n_samples": len(X),
+            "n_features": X.shape[1],
+            "n_classes": n_classes,
+            "class_distribution": {IDX_TO_SHIFT.get(int(k), str(k)): v for k, v in class_counts.items()},
+        })
 
     train_test_split = sk["train_test_split"]
     cross_val_score = sk["cross_val_score"]
@@ -770,196 +967,153 @@ def train_decision_tree(samples, test_ratio=0.2, max_depth=None, random_state=42
     DecisionTreeClassifier = sk["DecisionTreeClassifier"]
     joblib = sk["joblib"]
 
-    model_configs = []
+    actual_test_ratio = max(0.1, min(0.5, test_ratio))
 
-    depths = [3, 4, 5, 6, 7, 8, 10, 12, 15, 20, None] if max_depth is None else [max_depth]
-    for depth in depths:
-        for criterion in ["gini", "entropy"]:
-            for msl in [1, 2, 3, 5]:
-                for mss in [2, 3, 5, 10]:
-                    for mwfl in [None, "balanced"]:
-                        model_configs.append({
-                            "type": "dt",
-                            "name": f"决策树(d={depth},{criterion[:3]},msl={msl},mss={mss})",
-                            "cls": DecisionTreeClassifier,
-                            "kwargs": {
-                                "max_depth": depth,
-                                "criterion": criterion,
-                                "min_samples_leaf": msl,
-                                "min_samples_split": mss,
-                                "class_weight": mwfl,
-                            },
-                        })
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=actual_test_ratio, random_state=random_state, stratify=y
+    )
 
+    if progress_callback:
+        progress_callback({
+            "phase": "training",
+            "message": "正在训练堆垛预测决策树...",
+            "n_train": len(X_train),
+            "n_test": len(X_test),
+        })
+
+    depths = [5, 8, 10, 12, 15] if max_depth is None else [max_depth]
     best_overall = None
     best_overall_score = -1
     all_results = []
 
-    seeds = [random_state + i for i in range(n_iterations)]
-    total_configs = len(seeds) * len(model_configs)
-    config_idx = 0
-
-    if progress_callback:
-        progress_callback({
-            "phase": "init",
-            "n_iterations": n_iterations,
-            "n_configs": len(model_configs),
-            "total_steps": total_configs,
-            "n_samples": len(valid_samples),
-            "n_classes": n_classes,
-            "class_distribution": dict(Counter(y)),
-        })
-
-    for seed_idx, seed in enumerate(seeds):
-        try:
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=actual_test_ratio, random_state=seed, stratify=y
-            )
-        except ValueError:
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=actual_test_ratio, random_state=seed
-            )
-
-        for cfg in model_configs:
-            try:
-                clf_kwargs = dict(cfg["kwargs"])
-                clf_kwargs["random_state"] = seed
-
-                clf = cfg["cls"](**clf_kwargs)
-                clf.fit(X_train, y_train)
-                y_pred = clf.predict(X_test)
-                test_acc = accuracy_score(y_test, y_pred)
-                train_acc = accuracy_score(y_train, clf.predict(X_train))
-
-                cv_mean = round(float(test_acc), 4)
-                cv_std = 0.0
-                if cv_folds >= 2:
+    for depth in depths:
+        for criterion in ["gini", "entropy"]:
+            for msl in [2, 5, 10]:
+                for mss in [2, 5, 10]:
                     try:
-                        cv_n = min(cv_folds, min_class_count)
-                        cv_scores = cross_val_score(clf, X, y, cv=cv_n, scoring="accuracy")
-                        cv_mean = round(float(cv_scores.mean()), 4)
-                        cv_std = round(float(cv_scores.std()), 4)
+                        clf = DecisionTreeClassifier(
+                            max_depth=depth,
+                            criterion=criterion,
+                            min_samples_leaf=msl,
+                            min_samples_split=mss,
+                            random_state=random_state,
+                        )
+                        clf.fit(X_train, y_train)
+                        y_pred = clf.predict(X_test)
+                        test_acc = accuracy_score(y_test, y_pred)
+                        train_acc = accuracy_score(y_train, clf.predict(X_train))
+
+                        cv_mean = round(float(test_acc), 4)
+                        cv_std = 0.0
+                        if cv_folds >= 2:
+                            try:
+                                cv_n = min(cv_folds, min_class_count)
+                                cv_scores = cross_val_score(clf, X, y, cv=cv_n, scoring="accuracy")
+                                cv_mean = round(float(cv_scores.mean()), 4)
+                                cv_std = round(float(cv_scores.std()), 4)
+                            except Exception:
+                                pass
+
+                        overfit = train_acc - test_acc
+
+                        composite = cv_mean - cv_std * 0.3 - max(0, overfit - 0.05) * 2.0
+
+                        all_results.append({
+                            "max_depth": depth,
+                            "criterion": criterion,
+                            "min_samples_leaf": msl,
+                            "min_samples_split": mss,
+                            "test_accuracy": round(float(test_acc), 4),
+                            "train_accuracy": round(float(train_acc), 4),
+                            "overfit": round(float(overfit), 4),
+                            "cv_mean": cv_mean,
+                            "cv_std": cv_std,
+                        })
+
+                        if composite > best_overall_score:
+                            best_overall_score = composite
+                            best_overall = {
+                                "clf": clf,
+                                "test_accuracy": round(float(test_acc), 4),
+                                "train_accuracy": round(float(train_acc), 4),
+                                "overfit": round(float(overfit), 4),
+                                "cv_mean": cv_mean,
+                                "cv_std": cv_std,
+                                "max_depth": depth,
+                                "criterion": criterion,
+                                "min_samples_leaf": msl,
+                                "min_samples_split": mss,
+                            }
                     except Exception:
-                        pass
-
-                overfit = train_acc - test_acc
-
-                result_entry = {
-                    "model_type": "dt",
-                    "model_name": cfg["name"],
-                    "seed": seed,
-                    "test_accuracy": round(float(test_acc), 4),
-                    "train_accuracy": round(float(train_acc), 4),
-                    "overfit": round(float(overfit), 4),
-                    "cv_mean": cv_mean,
-                    "cv_std": cv_std,
-                }
-                all_results.append(result_entry)
-
-                config_idx += 1
-                if progress_callback and config_idx % 50 == 0:
-                    progress_callback({
-                        "phase": "training",
-                        "iteration": seed_idx + 1,
-                        "n_iterations": n_iterations,
-                        "config_idx": config_idx,
-                        "total_steps": total_configs,
-                        "current_model": cfg["name"],
-                        "current_type": "dt",
-                        "current_acc": round(float(test_acc), 4),
-                        "best_acc_so_far": round(float(best_overall_score), 4) if best_overall_score > -1 else 0,
-                    })
-
-                if test_acc >= 0.80:
-                    composite = cv_mean - cv_std * 0.3 - max(0, overfit - 0.05) * 2.0
-                else:
-                    composite = test_acc * 0.5 + cv_mean * 0.5 - cv_std * 0.3 - max(0, overfit - 0.05) * 2.0
-
-                if composite > best_overall_score:
-                    best_overall_score = composite
-                    best_overall = {
-                        "clf": clf,
-                        "cfg": cfg,
-                        "seed": seed,
-                        "test_accuracy": round(float(test_acc), 4),
-                        "cv_mean": cv_mean,
-                        "cv_std": cv_std,
-                        "train_accuracy": round(float(train_acc), 4),
-                        "overfit": round(float(overfit), 4),
-                        "X_train": X_train,
-                        "X_test": X_test,
-                        "y_train": y_train,
-                        "y_test": y_test,
-                    }
-            except Exception:
-                config_idx += 1
-                continue
+                        continue
 
     if best_overall is None:
         return {"success": False, "error": "所有参数组合训练失败"}
 
     if progress_callback:
-        progress_callback({"phase": "finalizing", "config_idx": total_configs, "total_steps": total_configs})
+        progress_callback({"phase": "finalizing", "message": "正在保存模型..."})
 
     best_clf = best_overall["clf"]
-    cfg = best_overall["cfg"]
+    y_pred_final = best_clf.predict(X_test)
 
-    y_pred_final = best_clf.predict(best_overall["X_test"])
-
-    model_id = f"dt_{random.randint(10000, 99999)}"
+    model_id = f"stacking_dt_{random.randint(10000, 99999)}"
     model_path = MODEL_DIR / f"{model_id}.pkl"
     joblib.dump({
         "model": best_clf,
         "scaler": None,
         "needs_scaling": False,
-        "feature_keys": feature_keys,
+        "feature_keys": STACKING_FEATURE_NAMES,
+        "model_type": "stacking_dt",
+        "label_map": IDX_TO_SHIFT,
     }, model_path)
 
     feature_importances = []
     if hasattr(best_clf, "feature_importances_"):
-        fi = dict(zip(feature_keys, best_clf.feature_importances_.tolist()))
+        fi = dict(zip(STACKING_FEATURE_NAMES, best_clf.feature_importances_.tolist()))
         feature_importances = sorted(fi.items(), key=lambda x: x[1], reverse=True)[:20]
 
-    report = classification_report(best_overall["y_test"], y_pred_final, output_dict=True, zero_division=0)
+    y_test_labels = [IDX_TO_SHIFT.get(int(l), str(l)) for l in y_test]
+    y_pred_labels = [IDX_TO_SHIFT.get(int(l), str(l)) for l in y_pred_final]
 
-    cm = confusion_matrix(best_overall["y_test"], y_pred_final)
-    class_labels = sorted(set(best_overall["y_test"]) | set(y_pred_final))
+    report = classification_report(y_test_labels, y_pred_labels, output_dict=True, zero_division=0)
+
+    cm = confusion_matrix(y_test, y_pred_final)
+    class_labels = ["A", "B", "C"]
     cm_list = cm.tolist()
-    cm_data = {"labels": [str(l) for l in class_labels], "matrix": cm_list}
+    cm_data = {"labels": class_labels, "matrix": cm_list}
 
     _model_cache.pop(model_id, None)
 
     return {
         "success": True,
         "model_id": model_id,
+        "model_type": "stacking_dt",
         "best_params": {
-            "model_type": "dt",
-            "model_name": cfg["name"],
+            "model_type": "stacking_dt",
+            "model_name": f"堆垛预测决策树(d={best_overall['max_depth']},{best_overall['criterion'][:3]},msl={best_overall['min_samples_leaf']},mss={best_overall['min_samples_split']})",
             "test_accuracy": best_overall["test_accuracy"],
             "train_accuracy": best_overall["train_accuracy"],
             "overfit": best_overall["overfit"],
             "cv_mean": best_overall["cv_mean"],
             "cv_std": best_overall["cv_std"],
-            "seed": best_overall["seed"],
-            "n_train": len(best_overall["X_train"]),
-            "n_test": len(best_overall["X_test"]),
+            "n_train": len(X_train),
+            "n_test": len(X_test),
             "n_classes": n_classes,
-            "max_depth": cfg["kwargs"].get("max_depth"),
-            "criterion": cfg["kwargs"].get("criterion"),
-            "min_samples_leaf": cfg["kwargs"].get("min_samples_leaf"),
-            "min_samples_split": cfg["kwargs"].get("min_samples_split"),
-            "class_weight": cfg["kwargs"].get("class_weight"),
+            "max_depth": best_overall["max_depth"],
+            "criterion": best_overall["criterion"],
+            "min_samples_leaf": best_overall["min_samples_leaf"],
+            "min_samples_split": best_overall["min_samples_split"],
         },
         "feature_importances": feature_importances,
         "classification_report": report,
         "confusion_matrix": cm_data,
-        "n_iterations": n_iterations,
         "n_configs_tested": len(all_results),
-        "feature_keys": feature_keys,
-        "n_total_samples": len(samples),
-        "n_valid_samples": len(valid_samples),
-        "class_distribution": {str(k): v for k, v in Counter(y).items()},
+        "feature_keys": STACKING_FEATURE_NAMES,
+        "n_total_samples": len(X),
+        "n_valid_samples": len(X),
+        "class_distribution": {IDX_TO_SHIFT.get(int(k), str(k)): v for k, v in class_counts.items()},
         "test_ratio": actual_test_ratio,
+        "training_data_source": "LayeredXOGenerator规则生成",
     }
 
 
@@ -986,7 +1140,7 @@ def _load_model(model_id):
         return None
 
 
-def predict_stacking(model_id, cif_data):
+def predict_stacking(model_id, layer_modes, stack_sequence="ABC"):
     model_path = MODEL_DIR / f"{model_id}.pkl"
     if not model_path.exists():
         return {"success": False, "error": f"模型不存在: {model_id}"}
@@ -997,57 +1151,119 @@ def predict_stacking(model_id, cif_data):
 
     if isinstance(saved, dict):
         clf = saved["model"]
-        scaler = saved.get("scaler")
-        needs_scaling = saved.get("needs_scaling", False)
-        feature_keys = saved.get("feature_keys", None)
+        label_map = saved.get("label_map", IDX_TO_SHIFT)
     else:
         clf = saved
-        scaler = None
-        needs_scaling = False
-        feature_keys = None
+        label_map = IDX_TO_SHIFT
 
-    features = extract_features(cif_data)
-    if not features:
-        return {"success": False, "error": "无法从CIF数据中提取特征"}
+    try:
+        from layer_generator import LayeredXOGenerator
+    except ImportError:
+        return {"success": False, "error": "layer_generator模块未找到"}
 
-    layer_features = extract_layer_features(cif_data)
+    gen = LayeredXOGenerator(enable_t=True)
 
-    if feature_keys is None:
-        feature_keys = sorted(features.keys())
+    try:
+        shift_seq, _ = gen.build_full_shift_sequence_without_T(layer_modes, stack_sequence)
 
-    fv = []
-    for k in feature_keys:
-        v = features.get(k, 0)
-        if v is None or (isinstance(v, float) and math.isnan(v)):
-            v = 0
-        fv.append(float(v))
+        layer_angles = [0.0] * len(layer_modes)
+        layer_dxs = [0.0] * len(layer_modes)
+        layer_dys = [0.0] * len(layer_modes)
+        alphas = [1.0] * sum(1 for m in layer_modes if m in MAIN_MODES)
+        z_seq, _ = gen.build_z_sequence_without_T(layer_modes, alphas)
 
-    X = np.array([fv])
-    if needs_scaling and scaler:
-        X = scaler.transform(X)
+        if gen.enable_t:
+            result = gen.insert_T_layers(
+                layer_modes, shift_seq, z_seq, layer_angles, layer_dxs, layer_dys
+            )
+            final_modes = result[0]
+            final_shifts = result[1]
+        else:
+            final_modes = layer_modes
+            final_shifts = shift_seq
+    except Exception as e:
+        return {"success": False, "error": f"层序列处理失败: {str(e)}"}
 
-    prediction = clf.predict(X)[0]
-    probabilities = {}
+    predictions = []
+    rule_shifts = []
+    correct = 0
 
-    if hasattr(clf, "predict_proba"):
-        try:
-            proba = clf.predict_proba(X)[0]
-            classes = clf.classes_.tolist()
-            for cls_name, prob in zip(classes, proba):
-                probabilities[cls_name] = round(float(prob), 4)
-        except Exception:
-            pass
+    for i in range(len(final_modes)):
+        features = _extract_features_for_layer(final_modes, final_shifts, i, gen)
+        pred_label = int(clf.predict([features])[0])
+        pred_shift = label_map.get(pred_label, str(pred_label))
+        rule_shift = final_shifts[i]
+        is_correct = pred_shift == rule_shift
+        if is_correct:
+            correct += 1
 
-    top_predictions = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)[:5]
+        proba_dict = {}
+        if hasattr(clf, "predict_proba"):
+            try:
+                proba = clf.predict_proba([features])[0]
+                classes = clf.classes_.tolist()
+                for cls_idx, prob in zip(classes, proba):
+                    cls_name = label_map.get(int(cls_idx), str(cls_idx))
+                    proba_dict[cls_name] = round(float(prob), 4)
+            except Exception:
+                pass
+
+        predictions.append({
+            "layer_index": i,
+            "mode": final_modes[i],
+            "rule_shift": rule_shift,
+            "predicted_shift": pred_shift,
+            "confidence": max(proba_dict.values()) if proba_dict else 0,
+            "probabilities": proba_dict,
+            "correct": is_correct,
+        })
+        rule_shifts.append(rule_shift)
+
+    accuracy = correct / len(final_modes) if final_modes else 0
 
     return {
         "success": True,
-        "predicted_topology": prediction,
-        "confidence": probabilities.get(prediction, 0),
-        "top_predictions": top_predictions,
-        "features": features,
-        "layer_analysis": layer_features,
+        "model_id": model_id,
+        "input_modes": layer_modes,
+        "input_stack_sequence": stack_sequence,
+        "expanded_modes": final_modes,
+        "rule_shifts": rule_shifts,
+        "predictions": predictions,
+        "accuracy": round(accuracy, 4),
+        "n_correct": correct,
+        "n_total": len(final_modes),
     }
+
+
+def predict_stacking_from_cif(model_id, cif_data):
+    model_path = MODEL_DIR / f"{model_id}.pkl"
+    if not model_path.exists():
+        return {"success": False, "error": f"模型不存在: {model_id}"}
+
+    saved = _load_model(model_id)
+    if saved is None:
+        return {"success": False, "error": "模型加载失败"}
+
+    layer_features = extract_layer_features(cif_data)
+    if not layer_features:
+        return {"success": False, "error": "无法从CIF数据中提取层信息"}
+
+    layer_modes = []
+    for lf in layer_features:
+        ltype = lf.get("predicted_type", "unknown")
+        if ltype in MODE_LIST:
+            layer_modes.append(ltype)
+        else:
+            layer_modes.append("XO3")
+
+    if not layer_modes:
+        return {"success": False, "error": "未能识别任何层模式"}
+
+    result = predict_stacking(model_id, layer_modes, "ABC")
+    result["layer_analysis"] = layer_features
+    result["detected_modes"] = layer_modes
+
+    return result
 
 
 def list_models():

@@ -1,0 +1,8 @@
+include LICENSE
+include NOTICE
+include pyproject.toml
+include requirements.txt
+
+recursive-include database *.json *.cif
+recursive-include models *.joblib *.pkl *.json
+recursive-include frontend/build *

@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  cgcpt-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cgcpt-server-dev
+    ports:
+      - "5000:5000"
+      - "5678:5678"   # Python debugpy
+    env_file:
+      - .env
+    environment:
+      CGCPT_DB_URL: mysql+pymysql://cgcpt:${MYSQL_PASSWORD:-changeme}@mysql:3306/cgcpt?charset=utf8mb4
+      CGCPT_DEBUG: "true"
+      FLASK_ENV: development
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - cgcpt-uploads:/app/uploads
+      - cgcpt-models:/app/models
+    command: ["flask", "run", "--host=0.0.0.0", "--port=5000", "--debug"]
+    networks:
+      - cgcpt-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: cgcpt-mysql-dev
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_changeme}
+      MYSQL_DATABASE: cgcpt
+      MYSQL_USER: cgcpt
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+    volumes:
+      - cgcpt-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cgcpt-network
+
+  # Frontend dev server with hot reload
+  frontend:
+    image: node:18-alpine
+    container_name: cgcpt-frontend-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - frontend-node-modules:/app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
+    networks:
+      - cgcpt-network
+
+volumes:
+  cgcpt-mysql-data:
+  cgcpt-uploads:
+  cgcpt-models:
+  frontend-node-modules:
+
+networks:
+  cgcpt-network:
+    driver: bridge

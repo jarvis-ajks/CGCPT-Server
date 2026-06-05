@@ -1,5 +1,7 @@
 import json
+import logging
 import math
+import os
 import re
 import sys
 import time
@@ -12,12 +14,18 @@ from collections import defaultdict
 from flask import Flask, request, jsonify, Response, make_response
 from flask_cors import CORS
 
+from config import ADMIN_USER, ADMIN_PASS, SECRET_KEY, HOST, PORT, DEBUG, DATABASE_DIR as CFG_DATABASE_DIR, CORS_ORIGINS
+from logger import get_logger
+
+logger = get_logger(__name__)
+
 app = Flask(__name__)
-CORS(app)
+app.config["SECRET_KEY"] = SECRET_KEY
+CORS(app, origins=CORS_ORIGINS.split(",") if CORS_ORIGINS else ["*"])
 
 _start_time = time.time()
 
-DATABASE_DIR = Path(__file__).resolve().parent / "database"
+DATABASE_DIR = CFG_DATABASE_DIR if CFG_DATABASE_DIR else Path(__file__).resolve().parent / "database"
 
 prototypes_index = {}
 materials_index = {}
@@ -1287,8 +1295,13 @@ def get_classifications():
 
 @app.route("/api/search", methods=["GET"])
 def search_materials():
+    # TODO: Add rate limiting for this endpoint
     build_indexes()
     q = request.args.get("q", "").strip()
+    # Input validation: limit length and strip dangerous characters
+    if len(q) > 200:
+        return jsonify({"error": "Query parameter 'q' exceeds maximum length of 200 characters"}), 400
+    q = re.sub(r"[<>'\";\\]", "", q)
     limit = min(100, max(1, int(request.args.get("limit", 20))))
 
     if not q:
@@ -1445,7 +1458,7 @@ def db_migrate():
         finally:
             db.close()
     except Exception as e:
-        traceback.print_exc()
+        logger.error("db_migrate failed: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -1522,7 +1535,7 @@ def create_task():
         task_id = submit_task(algorithm_id, input_data)
         return jsonify({"success": True, "task_id": task_id})
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -1967,7 +1980,7 @@ def execute_plugin(algo_id):
         task_id = submit_task(algo_id, input_data)
         return jsonify({"success": True, "task_id": task_id})
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2015,8 +2028,7 @@ def register_all_discovered():
         return jsonify({"success": False, "error": str(e)})
 
 
-ADMIN_USER = "admin"
-ADMIN_PASS = "123"
+# ADMIN_USER and ADMIN_PASS are now imported from config module
 
 
 def check_auth(request):
@@ -2133,7 +2145,7 @@ def upload_model():
             "metrics": metrics,
         })
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2257,15 +2269,13 @@ def stacking_train():
         n_iterations = int(body.get("n_iterations", 5))
         cv_folds = int(body.get("cv_folds", 5))
 
+        max_sequences = int(body.get("max_sequences", 500))
+
         test_ratio = max(0.05, min(0.5, test_ratio))
 
-        samples = sa.scan_database_cifs()
-        if not samples:
-            return jsonify({"success": False, "error": "数据库中没有找到CIF文件"})
-
         result = sa.train_decision_tree(
-            samples, test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
-            model_type=model_type, n_iterations=n_iterations, cv_folds=cv_folds
+            test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
+            cv_folds=cv_folds, max_sequences=max_sequences
         )
 
         if result.get("success") and result.get("model_id"):
@@ -2273,7 +2283,7 @@ def stacking_train():
 
         return jsonify(result)
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2290,11 +2300,8 @@ def stacking_train_stream():
     model_type = body.get("model_type", "auto")
     n_iterations = int(body.get("n_iterations", 5))
     cv_folds = int(body.get("cv_folds", 5))
+    max_sequences = int(body.get("max_sequences", 500))
     test_ratio = max(0.05, min(0.5, test_ratio))
-
-    samples = sa.scan_database_cifs()
-    if not samples:
-        return jsonify({"success": False, "error": "数据库中没有找到CIF文件"})
 
     ev_queue = queue_mod.Queue()
 
@@ -2304,15 +2311,15 @@ def stacking_train_stream():
     def run_training():
         try:
             result = sa.train_decision_tree(
-                samples, test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
-                model_type=model_type, n_iterations=n_iterations, cv_folds=cv_folds,
+                test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
+                cv_folds=cv_folds, max_sequences=max_sequences,
                 progress_callback=on_progress
             )
             if result.get("success") and result.get("model_id"):
                 sa.save_model_meta(result["model_id"], result)
             ev_queue.put(("result", result))
         except Exception as e:
-            traceback.print_exc()
+            logger.error("Exception occurred", exc_info=True)
             ev_queue.put(("error", str(e)))
         finally:
             ev_queue.put(None)
@@ -2343,23 +2350,30 @@ def stacking_predict():
     if not sa:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
     try:
-        body = request.get_json(force=True)
+        body = request.get_json(force=True) if request.is_json else {}
         model_id = body.get("model_id", "")
+        layer_modes = body.get("layer_modes", [])
+        stack_sequence = body.get("stack_sequence", "ABC")
         cif_text = body.get("cif_text", "")
 
         if not model_id:
             return jsonify({"success": False, "error": "请指定模型ID"})
-        if not cif_text:
-            return jsonify({"success": False, "error": "请提供CIF文本"})
 
-        cif_data = sa.parse_cif_text(cif_text)
-        if not cif_data:
-            return jsonify({"success": False, "error": "CIF文件解析失败，请检查格式"})
+        if layer_modes:
+            if isinstance(layer_modes, str):
+                layer_modes = [m.strip() for m in layer_modes.split(",") if m.strip()]
+            result = sa.predict_stacking(model_id, layer_modes, stack_sequence)
+        elif cif_text:
+            cif_data = sa.parse_cif_text(cif_text)
+            if not cif_data:
+                return jsonify({"success": False, "error": "CIF文件解析失败"})
+            result = sa.predict_stacking_from_cif(model_id, cif_data)
+        else:
+            return jsonify({"success": False, "error": "请提供layer_modes或cif_text"})
 
-        result = sa.predict_stacking(model_id, cif_data)
         return jsonify(_sanitize_json_value(result))
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2395,7 +2409,7 @@ def stacking_upload():
             "cif_text": cif_text,
         }))
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2420,6 +2434,62 @@ def stacking_delete_model(model_id):
         deleted = sa.delete_model(model_id)
         return jsonify({"success": deleted, "model_id": model_id})
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/stacking/self_improve", methods=["POST"])
+def stacking_self_improve():
+    try:
+        import self_improver as si
+    except ImportError:
+        return jsonify({"success": False, "error": "self_improver模块未找到"}), 500
+    try:
+        body = request.get_json(force=True) if request.is_json else {}
+        max_iterations = int(body.get("max_iterations", 3))
+        max_sequences = int(body.get("max_sequences", 300))
+        cv_folds = int(body.get("cv_folds", 3))
+        use_feature_engineering = body.get("use_feature_engineering", True)
+        use_hard_mining = body.get("use_hard_mining", True)
+        use_ensemble = body.get("use_ensemble", True)
+        use_bayesian = body.get("use_bayesian", True)
+
+        result = si.self_improve_iteration(
+            max_iterations=max_iterations,
+            max_sequences=max_sequences,
+            cv_folds=cv_folds,
+            use_feature_engineering=use_feature_engineering,
+            use_hard_mining=use_hard_mining,
+            use_ensemble=use_ensemble,
+            use_bayesian=use_bayesian,
+        )
+        return jsonify(_sanitize_json_value(result))
+    except Exception as e:
+        logger.error("Exception occurred", exc_info=True)
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/stacking/improvement_history", methods=["GET"])
+def stacking_improvement_history():
+    try:
+        import self_improver as si
+        trajectory = si.get_improvement_trajectory()
+        return jsonify({"success": True, "trajectory": trajectory, "n_iterations": len(trajectory)})
+    except ImportError:
+        return jsonify({"success": False, "error": "self_improver模块未找到"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/stacking/error_analysis/<model_id>", methods=["GET"])
+def stacking_error_analysis(model_id):
+    try:
+        import self_improver as si
+        result = si.analyze_errors(model_id)
+        return jsonify(_sanitize_json_value(result))
+    except ImportError:
+        return jsonify({"success": False, "error": "self_improver模块未找到"}), 500
+    except Exception as e:
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2452,7 +2522,7 @@ def stacking_analyze():
             "layer_analysis": layer_features,
         }))
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2464,8 +2534,8 @@ def stacking_batch_predict():
     try:
         body = request.get_json(force=True) if request.is_json else {}
         model_id = body.get("model_id", "")
-        topology_filter = body.get("topology", "")
-        limit = min(int(body.get("limit", 100)), 500)
+        layer_sequences = body.get("layer_sequences", [])
+        stack_sequence = body.get("stack_sequence", "ABC")
 
         if not model_id:
             return jsonify({"success": False, "error": "请指定模型ID"})
@@ -2474,63 +2544,58 @@ def stacking_batch_predict():
         if not model_path.exists():
             return jsonify({"success": False, "error": f"模型不存在: {model_id}"})
 
-        samples = sa.scan_database_cifs()
-        if not samples:
-            return jsonify({"success": False, "error": "数据库中没有CIF文件"})
-
-        if topology_filter:
-            samples = [s for s in samples if s["topology"] == topology_filter]
-
-        samples = samples[:limit]
+        if not layer_sequences:
+            layer_sequences = [
+                ["XO3", "M7", "XO3", "M7", "XO3", "XO3"],
+                ["XO3", "M7", "XO3", "M7", "XO3"],
+                ["XO3", "M7", "XO3", "M7", "XO3", "M7", "XO3"],
+                ["XO3", "XO3", "XO3"],
+                ["XO3", "M7", "XO3", "M7", "XO3", "M7", "XO3", "M7", "XO3"],
+                ["XBO3", "M7", "XBO3", "M7", "XBO3"],
+                ["XB3O6", "M7", "XB3O6"],
+                ["XO2", "M7", "XO2", "M7", "XO2"],
+                ["XO3", "M6", "XO3", "M6", "XO3"],
+                ["XO3", "M7", "XO3", "M7", "XO3", "M7", "XO3", "M7", "XO3", "M7", "XO3"],
+            ]
 
         results = []
-        match_count = 0
-        mismatch_count = 0
-        for s in samples:
-            cif_data = {
-                "lattice": s.get("features", {}),
-                "atom_sites": [],
-            }
-            cif_dir = None
-            for prefix in ["Raw_Proto_", "Verified_Proto_"]:
-                d = sa.DATABASE_DIR / f"{prefix}{s['topology']}"
-                if d.exists():
-                    cif_dir = d
-                    break
+        total_correct = 0
+        total_layers = 0
 
-            if cif_dir:
-                cif_path = cif_dir / s["filename"]
-                parsed = sa.parse_cif_file(cif_path)
-                if parsed:
-                    cif_data = parsed
-
-            pred = sa.predict_stacking(model_id, cif_data)
-            is_match = pred.get("predicted_topology") == s["topology"]
-            if is_match:
-                match_count += 1
+        for seq in layer_sequences:
+            if isinstance(seq, str):
+                seq = [m.strip() for m in seq.split(",") if m.strip()]
+            pred = sa.predict_stacking(model_id, seq, stack_sequence)
+            if pred.get("success"):
+                total_correct += pred.get("n_correct", 0)
+                total_layers += pred.get("n_total", 0)
+                results.append({
+                    "layer_modes": seq,
+                    "expanded_modes": pred.get("expanded_modes", []),
+                    "accuracy": pred.get("accuracy", 0),
+                    "n_correct": pred.get("n_correct", 0),
+                    "n_total": pred.get("n_total", 0),
+                    "predictions": pred.get("predictions", []),
+                })
             else:
-                mismatch_count += 1
+                results.append({
+                    "layer_modes": seq,
+                    "error": pred.get("error", "预测失败"),
+                })
 
-            results.append({
-                "filename": s["filename"],
-                "topology": s["topology"],
-                "predicted": pred.get("predicted_topology", ""),
-                "confidence": pred.get("confidence", 0),
-                "match": is_match,
-                "formula": s.get("formula", ""),
-            })
+        overall_accuracy = round(total_correct / total_layers, 4) if total_layers > 0 else 0
 
-        return jsonify({
+        return jsonify(_sanitize_json_value({
             "success": True,
             "model_id": model_id,
-            "n_predicted": len(results),
-            "match_count": match_count,
-            "mismatch_count": mismatch_count,
-            "accuracy": round(match_count / len(results), 4) if results else 0,
+            "n_sequences": len(results),
+            "overall_accuracy": overall_accuracy,
+            "total_correct": total_correct,
+            "total_layers": total_layers,
             "results": results,
-        })
+        }))
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -2661,7 +2726,7 @@ def import_preview():
             "errors": sum(1 for r in results if "error" in r),
         })
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
 
 
@@ -2748,7 +2813,7 @@ def import_materials():
             "total_materials_now": len(materials_index),
         })
     except Exception as e:
-        traceback.print_exc()
+        logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
 
 
@@ -2813,4 +2878,4 @@ def add_cache_headers(response):
 build_indexes()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host=HOST, port=PORT, debug=DEBUG)

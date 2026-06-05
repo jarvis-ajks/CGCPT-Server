@@ -1,0 +1,37 @@
+CGCPT Server
+Copyright 2024-2026 CGCPT Team
+
+This product includes software developed by third parties.
+The following notices are provided pursuant to their respective licenses.
+
+================================================================================
+
+Flask
+  Copyright (c) 2010 by Armin Ronacher and contributors.
+  Licensed under the BSD 3-Clause License.
+  https://github.com/pallets/flask
+
+pymatgen
+  Copyright (c) 2011-2024, Materials Project and pymatgen developers.
+  Licensed under the MIT License.
+  https://github.com/materialsproject/pymatgen
+
+scikit-learn
+  Copyright (c) 2007-2024, The scikit-learn developers.
+  Licensed under the BSD 3-Clause License.
+  https://github.com/scikit-learn/scikit-learn
+
+NumPy
+  Copyright (c) 2005-2024, NumPy Developers.
+  Licensed under the BSD 3-Clause License.
+  https://github.com/numpy/numpy
+
+SQLAlchemy
+  Copyright (c) 2005-2024, Michael Bayer and contributors.
+  Licensed under the MIT License.
+  https://github.com/sqlalchemy/sqlalchemy
+
+React
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  Licensed under the MIT License.
+  https://github.com/facebook/react

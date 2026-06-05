@@ -1,0 +1,163 @@
+|--- x_layer_position <= 0.50
+|   |--- is_x_layer <= 0.50
+|   |   |--- lower_main_shift <= 0.50
+|   |   |   |--- upper_main_shift <= 0.50
+|   |   |   |   |--- class: 0
+|   |   |   |--- upper_main_shift >  0.50
+|   |   |   |   |--- current_mode <= 6.00
+|   |   |   |   |   |--- class: 0
+|   |   |   |   |--- current_mode >  6.00
+|   |   |   |   |   |--- upper_main_shift <= 1.50
+|   |   |   |   |   |   |--- class: 2
+|   |   |   |   |   |--- upper_main_shift >  1.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |--- lower_main_shift >  0.50
+|   |   |   |--- upper_main_shift <= 0.50
+|   |   |   |   |--- prev_x_shift <= 1.50
+|   |   |   |   |   |--- is_main_layer <= 0.50
+|   |   |   |   |   |   |--- class: 2
+|   |   |   |   |   |--- is_main_layer >  0.50
+|   |   |   |   |   |   |--- next_mode <= 8.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- next_mode >  8.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |--- prev_x_shift >  1.50
+|   |   |   |   |   |--- is_main_layer <= 0.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- is_main_layer >  0.50
+|   |   |   |   |   |   |--- n_x_in_seq <= 3.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- n_x_in_seq >  3.50
+|   |   |   |   |   |   |   |--- class: 2
+|   |   |   |--- upper_main_shift >  0.50
+|   |   |   |   |--- next_mode <= 4.50
+|   |   |   |   |   |--- upper_main_shift <= 1.50
+|   |   |   |   |   |   |--- lower_main_shift <= 1.50
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- lower_main_shift >  1.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 2
+|   |   |   |   |   |--- upper_main_shift >  1.50
+|   |   |   |   |   |   |--- current_mode <= 6.00
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- current_mode >  6.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |--- next_mode >  4.50
+|   |   |   |   |   |--- lower_main_shift <= 1.50
+|   |   |   |   |   |   |--- next_is_xb3o6 <= 0.50
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- next_is_xb3o6 >  0.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 3
+|   |   |   |   |   |--- lower_main_shift >  1.50
+|   |   |   |   |   |   |--- next_is_xb3o6 <= 0.50
+|   |   |   |   |   |   |   |--- class: 2
+|   |   |   |   |   |   |--- next_is_xb3o6 >  0.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 2
+|   |--- is_x_layer >  0.50
+|   |   |--- class: 0
+|--- x_layer_position >  0.50
+|   |--- x_layer_position <= 2.50
+|   |   |--- prev_x_shift <= 0.50
+|   |   |   |--- upper_main_shift <= 1.50
+|   |   |   |   |--- upper_main_shift <= 0.50
+|   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |--- next_mode <= 4.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- next_mode >  4.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |--- seq_len <= 9.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- seq_len >  9.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |--- upper_main_shift >  0.50
+|   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |--- x_layer_position <= 1.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- x_layer_position >  1.50
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |--- prev_mode <= 1.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- prev_mode >  1.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |--- upper_main_shift >  1.50
+|   |   |   |   |--- n_x_in_seq <= 2.50
+|   |   |   |   |   |--- class: 2
+|   |   |   |   |--- n_x_in_seq >  2.50
+|   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |--- seq_len <= 9.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- seq_len >  9.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |--- prev_x_shift >  0.50
+|   |   |   |--- prev_x_shift <= 1.50
+|   |   |   |   |--- upper_main_shift <= 0.50
+|   |   |   |   |   |--- n_x_in_seq <= 3.50
+|   |   |   |   |   |   |--- prev_mode <= 7.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- prev_mode >  7.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- n_x_in_seq >  3.50
+|   |   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |--- upper_main_shift >  0.50
+|   |   |   |   |   |--- upper_main_shift <= 1.50
+|   |   |   |   |   |   |--- n_x_in_seq <= 3.50
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- n_x_in_seq >  3.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- upper_main_shift >  1.50
+|   |   |   |   |   |   |--- class: 2
+|   |   |   |--- prev_x_shift >  1.50
+|   |   |   |   |--- class: 1
+|   |--- x_layer_position >  2.50
+|   |   |--- lower_main_shift <= 0.50
+|   |   |   |--- upper_main_shift <= 0.50
+|   |   |   |   |--- x_layer_position <= 3.50
+|   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |--- next_mode <= 8.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- next_mode >  8.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |--- seq_len <= 9.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- seq_len >  9.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |--- x_layer_position >  3.50
+|   |   |   |   |   |--- current_mode <= 1.50
+|   |   |   |   |   |   |--- prev_mode <= 1.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- prev_mode >  1.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- current_mode >  1.50
+|   |   |   |   |   |   |--- prev_is_xb3o6 <= 0.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- prev_is_xb3o6 >  0.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |--- upper_main_shift >  0.50
+|   |   |   |   |--- class: 1
+|   |   |--- lower_main_shift >  0.50
+|   |   |   |--- prev_x_shift <= 1.50
+|   |   |   |   |--- class: 0
+|   |   |   |--- prev_x_shift >  1.50
+|   |   |   |   |--- upper_main_shift <= 0.50
+|   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |--- next_mode <= 8.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- next_mode >  8.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |--- current_mode <= 0.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |   |   |--- current_mode >  0.50
+|   |   |   |   |   |   |   |--- truncated branch of depth 4
+|   |   |   |   |--- upper_main_shift >  0.50
+|   |   |   |   |   |--- n_x_in_seq <= 4.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- n_x_in_seq >  4.50
+|   |   |   |   |   |   |--- class: 0

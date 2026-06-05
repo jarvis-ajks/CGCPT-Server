@@ -12,10 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 
-DATABASE_URL = os.environ.get(
-    "CGCPT_DB_URL",
-    "mysql+pymysql://root@127.0.0.1:3306/cgcpt?charset=utf8mb4"
-)
+from config import DATABASE_URL
 
 engine = create_engine(
     DATABASE_URL,

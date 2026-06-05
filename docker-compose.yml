@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  cgcpt-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cgcpt-server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      CGCPT_DB_URL: mysql+pymysql://cgcpt:${MYSQL_PASSWORD:-changeme}@mysql:3306/cgcpt?charset=utf8mb4
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - cgcpt-uploads:/app/uploads
+      - cgcpt-models:/app/models
+    networks:
+      - cgcpt-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: cgcpt-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_changeme}
+      MYSQL_DATABASE: cgcpt
+      MYSQL_USER: cgcpt
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+    volumes:
+      - cgcpt-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cgcpt-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: cgcpt-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - cgcpt-server
+    networks:
+      - cgcpt-network
+
+volumes:
+  cgcpt-mysql-data:
+  cgcpt-uploads:
+  cgcpt-models:
+
+networks:
+  cgcpt-network:
+    driver: bridge

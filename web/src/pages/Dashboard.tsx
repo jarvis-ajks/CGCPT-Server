@@ -5,6 +5,7 @@ import {
   BarChart3, RefreshCw, Upload, Key,
   XCircle, Loader2, Plus, Eye,
   Zap, ShieldCheck, Star, LogIn, LogOut,
+  Layers, TrendingUp, Target,
 } from 'lucide-react'
 
 const BASE = '/CGCPT/api'
@@ -69,7 +70,7 @@ function TypeBadge({ type }: { type: string }) {
   return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-medium ${cls}`}>{type}</span>
 }
 
-type TabKey = 'dashboard' | 'algorithms' | 'tasks' | 'materials' | 'models'
+type TabKey = 'dashboard' | 'algorithms' | 'tasks' | 'materials' | 'models' | 'stacking'
 
 export default function Dashboard() {
   const [tab, setTab] = useState<TabKey>('dashboard')
@@ -95,6 +96,19 @@ export default function Dashboard() {
   const [matTotal, setMatTotal] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+
+  const [stackingModels, setStackingModels] = useState<any[]>([])
+  const [training, setTraining] = useState(false)
+  const [trainResult, setTrainResult] = useState<any>(null)
+  const [predModes, setPredModes] = useState('XO3, M7, XO3, M7, XO3, XO3')
+  const [predStack, setPredStack] = useState('ABC')
+  const [predModelId, setPredModelId] = useState('')
+  const [predicting, setPredicting] = useState(false)
+  const [predResult, setPredResult] = useState<any>(null)
+  const [selfImproving, setSelfImproving] = useState(false)
+  const [improveResult, setImproveResult] = useState<any>(null)
+  const [improveHistory, setImproveHistory] = useState<any[]>([])
+  const [errorAnalysis, setErrorAnalysis] = useState<any>(null)
 
   const checkAuth = useCallback(async () => {
     const token = localStorage.getItem(AUTH_KEY)
@@ -124,8 +138,20 @@ export default function Dashboard() {
   const loadModels = useCallback(async () => {
     try { const data = await apiFetch<{ success: boolean; models: ModelItem[] }>('/models'); if (data.success) setModels(data.models) } catch {}
   }, [])
+  const loadStackingModels = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ success: boolean; models: any[] }>('/stacking/models')
+      if (data.success) {
+        setStackingModels(data.models)
+        if (data.models.length > 0 && !predModelId) {
+          const active = data.models.find((m: any) => m.is_active)
+          setPredModelId(active?.id || data.models[0]?.id || '')
+        }
+      }
+    } catch {}
+  }, [])
 
-  useEffect(() => { checkAuth(); loadStats(); loadAlgorithms(); loadTasks(); loadModels() }, [checkAuth, loadStats, loadAlgorithms, loadTasks, loadModels])
+  useEffect(() => { checkAuth(); loadStats(); loadAlgorithms(); loadTasks(); loadModels(); loadStackingModels() }, [checkAuth, loadStats, loadAlgorithms, loadTasks, loadModels, loadStackingModels])
   useEffect(() => { if (tab === 'materials') loadMaterials(1) }, [tab, loadMaterials])
 
   const handleLogin = async () => {
@@ -193,10 +219,70 @@ export default function Dashboard() {
     try { await apiFetch(`/models/${id}/activate`, { method: 'POST' }); loadModels() } catch {}
   }
 
-  const refreshAll = () => { loadStats(); loadAlgorithms(); loadTasks(); loadModels(); if (tab === 'materials') loadMaterials(matPage) }
+  const refreshAll = () => { loadStats(); loadAlgorithms(); loadTasks(); loadModels(); loadStackingModels(); if (tab === 'materials') loadMaterials(matPage) }
+
+  const handleTrainStacking = async () => {
+    setTraining(true); setTrainResult(null)
+    try {
+      const data = await apiFetch<{ success: boolean; error?: string }>('/stacking/train', {
+        method: 'POST', body: JSON.stringify({ test_ratio: 0.2, cv_folds: 5, max_sequences: 500 }),
+      })
+      if ((data as any).success) {
+        setTrainResult(data)
+        loadStackingModels()
+        loadModels()
+      } else {
+        setTrainResult({ success: false, error: (data as any).error || '训练失败' })
+      }
+    } catch (e: any) { setTrainResult({ success: false, error: e.message || '网络错误' }) }
+    finally { setTraining(false) }
+  }
+
+  const handlePredictStacking = async () => {
+    if (!predModelId) return
+    setPredicting(true); setPredResult(null)
+    try {
+      const modes = predModes.split(',').map(m => m.trim()).filter(Boolean)
+      const data = await apiFetch<{ success: boolean }>('/stacking/predict', {
+        method: 'POST', body: JSON.stringify({ model_id: predModelId, layer_modes: modes, stack_sequence: predStack }),
+      })
+      setPredResult(data)
+    } catch (e: any) { setPredResult({ success: false, error: e.message || '网络错误' }) }
+    finally { setPredicting(false) }
+  }
+
+  const handleSelfImprove = async () => {
+    setSelfImproving(true); setImproveResult(null)
+    try {
+      const data = await apiFetch<{ success: boolean }>('/stacking/self_improve', {
+        method: 'POST', body: JSON.stringify({ max_iterations: 3, max_sequences: 300, cv_folds: 3 }),
+      })
+      setImproveResult(data)
+      loadStackingModels()
+      loadImproveHistory()
+    } catch (e: any) { setImproveResult({ success: false, error: e.message || '网络错误' }) }
+    finally { setSelfImproving(false) }
+  }
+
+  const loadImproveHistory = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ success: boolean; trajectory: any[] }>('/stacking/improvement_history')
+      if (data.success) setImproveHistory(data.trajectory)
+    } catch {}
+  }, [])
+
+  const handleErrorAnalysis = async (modelId: string) => {
+    try {
+      const data = await apiFetch<{ success: boolean }>(`/stacking/error_analysis/${modelId}`)
+      setErrorAnalysis(data)
+    } catch {}
+  }
+
+  useEffect(() => { loadImproveHistory() }, [loadImproveHistory])
 
   const tabs: { key: TabKey; label: string; shortLabel: string; icon: any }[] = [
     { key: 'dashboard', label: '仪表板', shortLabel: '概览', icon: BarChart3 },
+    { key: 'stacking', label: '堆垛预测', shortLabel: '堆垛', icon: Layers },
     { key: 'algorithms', label: '算法', shortLabel: '算法', icon: Cpu },
     { key: 'tasks', label: '任务', shortLabel: '任务', icon: Activity },
     { key: 'materials', label: '材料', shortLabel: '材料', icon: Database },
@@ -398,6 +484,252 @@ export default function Dashboard() {
                 <button onClick={() => loadMaterials(matPage + 1)} disabled={matPage * 50 >= matTotal} className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-xs">下一页</button>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'stacking' && (
+          <div className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2">
+                    <TrendingUp size={16} className="text-cyan-400" /> 训练堆垛决策树
+                  </h3>
+                  <button onClick={handleTrainStacking} disabled={training}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-xs sm:text-sm font-medium disabled:opacity-50">
+                    {training ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                    {training ? '训练中...' : '开始训练'}
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 space-y-1 mb-3">
+                  <p>训练数据: LayeredXOGenerator 规则自动生成</p>
+                  <p>预测目标: 每层堆垛标签 (A/B/C)</p>
+                  <p>特征维度: 19维层上下文特征</p>
+                </div>
+                {trainResult && (
+                  <div className={`rounded-lg p-3 text-xs ${trainResult.success ? 'bg-emerald-900/20 border border-emerald-700/30' : 'bg-red-900/20 border border-red-700/30'}`}>
+                    {trainResult.success ? (
+                      <div className="space-y-1">
+                        <p className="text-emerald-300 font-semibold">训练成功!</p>
+                        <p>模型ID: <span className="font-mono">{trainResult.model_id}</span></p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1">
+                          <p>测试准确率: <span className="text-emerald-300 font-bold">{(trainResult.best_params?.test_accuracy * 100)?.toFixed(2) || trainResult.best_params?.test_accuracy}%</span></p>
+                          <p>训练准确率: <span className="text-white">{(trainResult.best_params?.train_accuracy * 100)?.toFixed(2) || trainResult.best_params?.train_accuracy}%</span></p>
+                          <p>交叉验证: <span className="text-cyan-300">{(trainResult.best_params?.cv_mean * 100)?.toFixed(2) || trainResult.best_params?.cv_mean}% ± {(trainResult.best_params?.cv_std * 100)?.toFixed(2) || trainResult.best_params?.cv_std}%</span></p>
+                          <p>过拟合: <span className={trainResult.best_params?.overfit > 0.1 ? 'text-yellow-300' : 'text-emerald-300'}>{(trainResult.best_params?.overfit * 100)?.toFixed(2) || trainResult.best_params?.overfit}%</span></p>
+                        </div>
+                        <p>训练样本: {trainResult.n_total_samples} | 参数组合: {trainResult.n_configs_tested}</p>
+                        {trainResult.feature_importances?.slice(0, 5).map(([name, imp]: [string, number]) => (
+                          <p key={name} className="text-gray-400">{name}: {typeof imp === 'number' ? (imp * 100).toFixed(1) : imp}%</p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-red-300">{trainResult.error}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2 mb-4">
+                  <Target size={16} className="text-purple-400" /> 堆垛预测
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">选择模型</label>
+                    <select value={predModelId} onChange={e => setPredModelId(e.target.value)}
+                      className="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 outline-none">
+                      {stackingModels.length > 0 ? stackingModels.map((m: any) => (
+                        <option key={m.id} value={m.id}>{m.id} {m.is_active ? '(活跃)' : ''}</option>
+                      )) : <option value="">暂无模型，请先训练</option>}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">层模式序列 (逗号分隔)</label>
+                    <input value={predModes} onChange={e => setPredModes(e.target.value)}
+                      className="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 focus:border-cyan-500 outline-none font-mono"
+                      placeholder="XO3, M7, XO3, M7, XO3, XO3" />
+                    <p className="text-[10px] text-gray-600 mt-1">可用模式: XO, XO2, XO3, X, XBO3, BO3, XB3O6, M6, M7</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">堆叠序列</label>
+                    <input value={predStack} onChange={e => setPredStack(e.target.value)}
+                      className="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 focus:border-cyan-500 outline-none font-mono"
+                      placeholder="ABC" />
+                  </div>
+                  <button onClick={handlePredictStacking} disabled={predicting || !predModelId}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded bg-purple-600 hover:bg-purple-500 text-sm font-medium disabled:opacity-50">
+                    {predicting ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
+                    {predicting ? '预测中...' : '预测堆垛'}
+                  </button>
+                </div>
+                {predResult && predResult.success && (
+                  <div className="mt-3 bg-gray-800/50 rounded-lg p-3 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">预测准确率</span>
+                      <span className={`font-bold ${predResult.accuracy >= 0.8 ? 'text-emerald-300' : predResult.accuracy >= 0.5 ? 'text-yellow-300' : 'text-red-300'}`}>
+                        {(predResult.accuracy * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">正确/总数</span>
+                      <span>{predResult.n_correct}/{predResult.n_total}</span>
+                    </div>
+                    <div className="border-t border-gray-700 pt-2 mt-2">
+                      <p className="text-gray-400 mb-1">各层预测结果:</p>
+                      <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                        {predResult.predictions?.map((p: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <span className="text-gray-300">层{i}: {p.mode}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">规则: {p.rule_shift}</span>
+                              <span className={`font-bold ${p.correct ? 'text-emerald-300' : 'text-red-300'}`}>预测: {p.predicted_shift}</span>
+                              {p.confidence > 0 && <span className="text-gray-500">({(p.confidence * 100).toFixed(0)}%)</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {predResult && !predResult.success && (
+                  <div className="mt-3 bg-red-900/20 border border-red-700/30 rounded-lg p-3 text-xs text-red-300">
+                    {predResult.error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2 mb-3">
+                <Layers size={16} className="text-orange-400" /> 已有堆垛模型
+              </h3>
+              {stackingModels.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {stackingModels.map((m: any) => (
+                    <div key={m.id} className={`bg-gray-800/50 rounded-lg p-3 border ${m.is_active ? 'border-cyan-500/30' : 'border-gray-700/30'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono text-xs truncate">{m.id}</span>
+                        {m.is_active && <Star size={12} className="text-cyan-400" />}
+                      </div>
+                      <div className="text-[10px] text-gray-500 space-y-0.5">
+                        <p>类型: {m.model_type || 'stacking_dt'}</p>
+                        {m.metrics?.test_accuracy && <p>准确率: <span className="text-emerald-300">{(m.metrics.test_accuracy * 100).toFixed(2)}%</span></p>}
+                        {m.metrics?.cv_mean && <p>CV: {(m.metrics.cv_mean * 100).toFixed(2)}%</p>}
+                        {m.metrics?.n_total_samples && <p>样本: {m.metrics.n_total_samples}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-gray-500 text-sm text-center py-4">暂无模型，请先训练</p>}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2">
+                    <TrendingUp size={16} className="text-emerald-400" /> 自我迭代优化
+                  </h3>
+                  <button onClick={handleSelfImprove} disabled={selfImproving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium disabled:opacity-50">
+                    {selfImproving ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+                    {selfImproving ? '优化中...' : '启动迭代'}
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 space-y-1 mb-3">
+                  <p>每轮迭代: 误差分析 → 特征增强 → 难例挖掘 → 贝叶斯优化 → 集成融合</p>
+                  <p>自动识别模型弱点，定向增强训练，持续提升准确率</p>
+                </div>
+                {improveResult && (
+                  <div className={`rounded-lg p-3 text-xs ${improveResult.success ? 'bg-emerald-900/20 border border-emerald-700/30' : 'bg-red-900/20 border border-red-700/30'}`}>
+                    {improveResult.success ? (
+                      <div className="space-y-1">
+                        <p className="text-emerald-300 font-semibold">迭代优化完成!</p>
+                        <p>迭代轮数: {improveResult.n_iterations}</p>
+                        <p>最佳准确率: <span className="text-emerald-300 font-bold">{((improveResult.best_iteration?.cv_mean || 0) * 100).toFixed(2)}%</span></p>
+                        <p>总提升: <span className="text-cyan-300">{improveResult.total_improvement}%</span></p>
+                        <p>最佳策略: {improveResult.best_iteration?.strategy}</p>
+                        {improveResult.improvement_trajectory?.length > 0 && (
+                          <div className="mt-2 border-t border-gray-700 pt-2">
+                            <p className="text-gray-400 mb-1">提升轨迹:</p>
+                            {improveResult.improvement_trajectory.map((t: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between">
+                                <span className="text-gray-400">Iter {t.iteration}</span>
+                                <span className="text-white">{((t.cv_mean || 0) * 100).toFixed(2)}%</span>
+                                <span className="text-gray-500 text-[10px]">{t.strategy}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-red-300">{improveResult.error}</p>
+                    )}
+                  </div>
+                )}
+                {improveHistory.length > 0 && !improveResult && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 text-xs">
+                    <p className="text-gray-400 mb-1">历史迭代记录 ({improveHistory.length} 轮):</p>
+                    <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                      {improveHistory.map((h: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between">
+                          <span className="text-gray-400">Iter {h.iteration}</span>
+                          <span className="text-white">{((h.cv_mean || 0) * 100).toFixed(2)}%</span>
+                          <span className="text-gray-500 text-[10px]">{h.strategy}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2 mb-3">
+                  <Activity size={16} className="text-orange-400" /> 误差分析
+                </h3>
+                <div className="space-y-2">
+                  <select value={predModelId} onChange={e => setPredModelId(e.target.value)}
+                    className="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 outline-none">
+                    {stackingModels.length > 0 ? stackingModels.map((m: any) => (
+                      <option key={m.id} value={m.id}>{m.id}</option>
+                    )) : <option value="">暂无模型</option>}
+                  </select>
+                  <button onClick={() => predModelId && handleErrorAnalysis(predModelId)} disabled={!predModelId}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded bg-orange-600 hover:bg-orange-500 text-sm font-medium disabled:opacity-50">
+                    <Activity size={13} /> 分析误差
+                  </button>
+                </div>
+                {errorAnalysis && !errorAnalysis.error && (
+                  <div className="mt-3 bg-gray-800/50 rounded-lg p-3 text-xs space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">总错误率</span>
+                      <span className="text-orange-300 font-bold">{((errorAnalysis.error_rate || 0) * 100).toFixed(2)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">错误样本</span>
+                      <span>{errorAnalysis.total_errors}/{errorAnalysis.total_samples}</span>
+                    </div>
+                    {errorAnalysis.mode_error_rates && (
+                      <div className="border-t border-gray-700 pt-2">
+                        <p className="text-gray-400 mb-1">各层模式错误率:</p>
+                        {Object.entries(errorAnalysis.mode_error_rates).slice(0, 6).map(([mode, rate]: [string, any]) => (
+                          <div key={mode} className="flex justify-between">
+                            <span className="text-gray-300">{mode}</span>
+                            <span className={rate > 0.2 ? 'text-red-300' : 'text-gray-400'}>{(rate * 100).toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {errorAnalysis.hardest_modes && errorAnalysis.hardest_modes.length > 0 && (
+                      <div>
+                        <span className="text-gray-400">最难预测: </span>
+                        <span className="text-red-300">{errorAnalysis.hardest_modes.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

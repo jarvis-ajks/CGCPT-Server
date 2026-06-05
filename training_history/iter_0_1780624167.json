@@ -1,0 +1,77 @@
+{
+  "iteration": 0,
+  "model_id": "self_improve_iter0_72295",
+  "strategy": "bayesian_optimization",
+  "test_accuracy": 0.8503,
+  "train_accuracy": 0.893,
+  "cv_mean": 0.8755,
+  "cv_std": 0.0062,
+  "overfit": 0.0428,
+  "n_samples": 11520,
+  "n_features": 19,
+  "feature_engineering": false,
+  "hard_mining": false,
+  "bayesian": true,
+  "ensemble": false,
+  "ensemble_result": null,
+  "error_analysis": {
+    "total_errors": 345,
+    "total_samples": 2304,
+    "error_rate": 0.1497,
+    "mode_error_rates": {
+      "XO3": 0.335,
+      "XO2": 0.3247,
+      "X": 0.3105,
+      "XO": 0.3032,
+      "XB3O6": 0.2747,
+      "XBO3": 0.2182,
+      "BO3": 0.0619
+    },
+    "shift_confusion": {
+      "A": {
+        "B": 97,
+        "C": 33
+      },
+      "B": {
+        "A": 131,
+        "C": 32
+      },
+      "C": {
+        "B": 26,
+        "A": 26
+      }
+    },
+    "hardest_modes": [
+      "XO3",
+      "X",
+      "XO2",
+      "XB3O6",
+      "XO"
+    ],
+    "high_variance_features": [
+      {
+        "feature": "seq_len",
+        "variance": 1.609124
+      },
+      {
+        "feature": "x_layer_position",
+        "variance": 1.6349
+      },
+      {
+        "feature": "current_mode",
+        "variance": 3.570964
+      },
+      {
+        "feature": "prev_mode",
+        "variance": 8.085663
+      },
+      {
+        "feature": "next_mode",
+        "variance": 8.108935
+      }
+    ]
+  },
+  "is_ensemble": false,
+  "id": "iter_0_1780624167",
+  "saved_at": "2026-06-05T01:49:27.524227"
+}

@@ -1,0 +1,60 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment: production
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -euo pipefail
+
+            cd ${{ secrets.DEPLOY_PATH || '/opt/cgcpt-server' }}
+
+            echo "=== Pulling latest code ==="
+            git pull origin ${{ github.ref_name }}
+
+            echo "=== Rebuilding and restarting services ==="
+            docker compose down --remove-orphans
+            docker compose build --no-cache cgcpt-server
+            docker compose up -d
+
+            echo "=== Waiting for services to start ==="
+            sleep 15
+
+      - name: Health check
+        run: |
+          PROTOCOL="https"
+          HOST="${{ secrets.DEPLOY_HOST }}"
+          MAX_RETRIES=10
+          RETRY_INTERVAL=5
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Health check attempt $i/$MAX_RETRIES..."
+            STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$PROTOCOL://$HOST/api/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed (HTTP $STATUS)"
+              exit 0
+            fi
+            echo "  Got HTTP $STATUS, retrying in ${RETRY_INTERVAL}s..."
+            sleep $RETRY_INTERVAL
+          done
+
+          echo "Health check failed after $MAX_RETRIES attempts"
+          exit 1
