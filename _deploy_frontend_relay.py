@@ -4,14 +4,14 @@ import time
 import tarfile
 import tempfile
 
-LOCAL_BASE = r'd:\Projects\CGCPT-Server'
-CAMPUS_HOST = '10.21.22.100'
-CAMPUS_USER = 'jarvisajks'
-CAMPUS_PASS = 'Jarvis666'
-CLOUD_HOST = '118.31.164.41'
-CLOUD_USER = 'root'
-CLOUD_PASS = 'ZS1029384756!'
-CLOUD_REMOTE = '/opt/CGCPT'
+LOCAL_BASE = r"d:\Projects\CGCPT-Server"
+CAMPUS_HOST = "10.21.22.100"
+CAMPUS_USER = "jarvisajks"
+CAMPUS_PASS = "Jarvis666"
+CLOUD_HOST = "118.31.164.41"
+CLOUD_USER = "root"
+CLOUD_PASS = "ZS1029384756!"
+CLOUD_REMOTE = "/opt/CGCPT"
 
 print(f"Connecting to campus server...")
 campus = paramiko.SSHClient()
@@ -20,39 +20,50 @@ campus.connect(CAMPUS_HOST, username=CAMPUS_USER, password=CAMPUS_PASS, timeout=
 print("  Connected!")
 campus_sftp = campus.open_sftp()
 
+
 def campus_run(cmd, timeout=300):
     stdin, stdout, stderr = campus.exec_command(cmd, timeout=timeout)
     stdout.channel.settimeout(timeout)
     stderr.channel.settimeout(timeout)
-    out = stdout.read().decode('utf-8', errors='replace').strip()
-    err = stderr.read().decode('utf-8', errors='replace').strip()
+    out = stdout.read().decode("utf-8", errors="replace").strip()
+    err = stderr.read().decode("utf-8", errors="replace").strip()
     return out, err
 
+
 print("\nCreating frontend tar.gz...")
-dist_dir = os.path.join(LOCAL_BASE, 'web', 'dist')
-tmp_tar = os.path.join(tempfile.gettempdir(), 'cgcpt_fe_deploy.tar.gz')
-with tarfile.open(tmp_tar, 'w:gz') as tar:
+dist_dir = os.path.join(LOCAL_BASE, "web", "dist")
+tmp_tar = os.path.join(tempfile.gettempdir(), "cgcpt_fe_deploy.tar.gz")
+with tarfile.open(tmp_tar, "w:gz") as tar:
     for item in os.listdir(dist_dir):
         tar.add(os.path.join(dist_dir, item), arcname=item)
 tar_size = os.path.getsize(tmp_tar) / 1024
-print(f'  Archive size: {tar_size:.1f} KB')
+print(f"  Archive size: {tar_size:.1f} KB")
 
 print("\nUploading to campus server...")
-campus_sftp.put(tmp_tar, '/archive/jarvisajks/cgcpt_fe_deploy.tar.gz')
-print('  Uploaded!')
+campus_sftp.put(tmp_tar, "/archive/jarvisajks/cgcpt_fe_deploy.tar.gz")
+print("  Uploaded!")
 os.remove(tmp_tar)
 
 print("\nCreating relay deploy script...")
-relay_script = '''
+relay_script = (
+    '''
 import paramiko
 import os
 import time
 import sys
 
-CLOUD_HOST = "''' + CLOUD_HOST + '''"
-CLOUD_USER = "''' + CLOUD_USER + '''"
-CLOUD_PASS = "''' + CLOUD_PASS + '''"
-CLOUD_REMOTE = "''' + CLOUD_REMOTE + '''"
+CLOUD_HOST = "'''
+    + CLOUD_HOST
+    + '''"
+CLOUD_USER = "'''
+    + CLOUD_USER
+    + '''"
+CLOUD_PASS = "'''
+    + CLOUD_PASS
+    + '''"
+CLOUD_REMOTE = "'''
+    + CLOUD_REMOTE
+    + """"
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -120,46 +131,47 @@ print(f"  Brotli: {brotli_result}")
 sftp.close()
 ssh.close()
 print("\\nDEPLOY COMPLETE!")
-'''
+"""
+)
 
-relay_path = '/archive/jarvisajks/relay_fe_deploy_final.py'
-with campus_sftp.open(relay_path, 'w') as f:
+relay_path = "/archive/jarvisajks/relay_fe_deploy_final.py"
+with campus_sftp.open(relay_path, "w") as f:
     f.write(relay_script)
-print('  Script uploaded!')
+print("  Script uploaded!")
 
 print("\nRunning relay script in background with nohup...")
 out, err = campus_run(
-    f'nohup /archive/jarvisajks/cgcpt-stacking/venv/bin/python /archive/jarvisajks/relay_fe_deploy_final.py '
+    f"nohup /archive/jarvisajks/cgcpt-stacking/venv/bin/python /archive/jarvisajks/relay_fe_deploy_final.py "
     f'> /archive/jarvisajks/deploy_output.log 2>&1 & echo "PID=$!"',
-    timeout=30
+    timeout=30,
 )
-print(f'  Started: {out}')
+print(f"  Started: {out}")
 
 print("\nWaiting for deployment to complete (checking log every 30s)...")
-log_file = '/archive/jarvisajks/deploy_output.log'
+log_file = "/archive/jarvisajks/deploy_output.log"
 max_wait = 600
 start_time = time.time()
 
 while time.time() - start_time < max_wait:
     time.sleep(30)
     elapsed = int(time.time() - start_time)
-    
+
     try:
-        with campus_sftp.open(log_file, 'r') as f:
-            content = f.read().decode('utf-8', errors='replace')
-        
-        if 'DEPLOY COMPLETE' in content:
+        with campus_sftp.open(log_file, "r") as f:
+            content = f.read().decode("utf-8", errors="replace")
+
+        if "DEPLOY COMPLETE" in content:
             print(f"\n  Deployment completed after {elapsed}s!")
             print("\n=== Full deployment log ===")
             print(content)
             break
-        elif 'FAILED' in content:
+        elif "FAILED" in content:
             print(f"\n  Deployment FAILED after {elapsed}s!")
             print("\n=== Full deployment log ===")
             print(content)
             break
         else:
-            lines = content.strip().split('\n')
+            lines = content.strip().split("\n")
             last_lines = lines[-3:] if len(lines) >= 3 else lines
             print(f"  [{elapsed}s] Last output: {chr(10).join(last_lines)}")
     except Exception as e:
@@ -167,8 +179,8 @@ while time.time() - start_time < max_wait:
 else:
     print(f"\n  Timeout after {max_wait}s!")
     try:
-        with campus_sftp.open(log_file, 'r') as f:
-            content = f.read().decode('utf-8', errors='replace')
+        with campus_sftp.open(log_file, "r") as f:
+            content = f.read().decode("utf-8", errors="replace")
         print("\n=== Partial deployment log ===")
         print(content[-3000:])
     except:

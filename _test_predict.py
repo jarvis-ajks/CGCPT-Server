@@ -3,7 +3,15 @@ import json
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=120)
@@ -11,6 +19,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 # Test with gb_97393 model (the best one)
 model_id = "gb_97393"
@@ -32,11 +41,15 @@ if r:
     # Predict using this real CIF
     payload = json.dumps({"model_id": model_id, "cif_text": cif_content})
     # Use a temp file approach to avoid shell escaping issues
-    code, r = run(f"python3 -c \"import json,urllib.request; data=json.dumps({{'model_id':'{model_id}','cif_text':open('{cif_path}').read()}}).encode(); req=urllib.request.Request('http://localhost:5001/api/stacking/predict',data=data,headers={{'Content-Type':'application/json'}}); resp=urllib.request.urlopen(req,timeout=60); print(resp.read().decode()[:500])\"")
+    code, r = run(
+        f"python3 -c \"import json,urllib.request; data=json.dumps({{'model_id':'{model_id}','cif_text':open('{cif_path}').read()}}).encode(); req=urllib.request.Request('http://localhost:5001/api/stacking/predict',data=data,headers={{'Content-Type':'application/json'}}); resp=urllib.request.urlopen(req,timeout=60); print(resp.read().decode()[:500])\""
+    )
     print(f"Prediction: {r[:500]}")
 
 # Also test the analyze endpoint
-code, r = run(f"python3 -c \"import json,urllib.request; data=json.dumps({{'cif_text':open('{cif_path}').read()}}).encode(); req=urllib.request.Request('http://localhost:5001/api/stacking/analyze',data=data,headers={{'Content-Type':'application/json'}}); resp=urllib.request.urlopen(req,timeout=60); print(resp.read().decode()[:500])\"")
+code, r = run(
+    f"python3 -c \"import json,urllib.request; data=json.dumps({{'cif_text':open('{cif_path}').read()}}).encode(); req=urllib.request.Request('http://localhost:5001/api/stacking/analyze',data=data,headers={{'Content-Type':'application/json'}}); resp=urllib.request.urlopen(req,timeout=60); print(resp.read().decode()[:500])\""
+)
 print(f"Analyze: {r[:500]}")
 
 # Check memory after loading pymatgen

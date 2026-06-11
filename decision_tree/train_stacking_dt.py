@@ -291,6 +291,7 @@ def train_and_evaluate():
 
     plt.figure(figsize=(24, 14))
     from sklearn.tree import plot_tree
+
     plot_tree(
         clf,
         feature_names=FEATURE_NAMES,
@@ -306,6 +307,7 @@ def train_and_evaluate():
     print("  决策树可视化已保存: stacking_dt_visualization.png")
 
     import json
+
     model_info = {
         "model_type": "DecisionTreeClassifier",
         "max_depth": int(clf.get_depth()),

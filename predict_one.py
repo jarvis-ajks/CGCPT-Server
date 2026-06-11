@@ -29,8 +29,10 @@ def main():
             return 0
         print(f"可用模型 ({len(models)} 个):")
         for m in models:
-            print(f"  {m['model_id']}: 准确率={m['test_accuracy']*100:.1f}%, "
-                  f"样本={m['n_samples']}, 类别={m['n_classes']}")
+            print(
+                f"  {m['model_id']}: 准确率={m['test_accuracy']*100:.1f}%, "
+                f"样本={m['n_samples']}, 类别={m['n_classes']}"
+            )
         return 0
 
     if not args.model:
@@ -40,7 +42,7 @@ def main():
 
     cif_text = args.cif_text
     if args.cif:
-        with open(args.cif, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(args.cif, "r", encoding="utf-8", errors="ignore") as f:
             cif_text = f.read()
 
     if not cif_text:
@@ -53,7 +55,7 @@ def main():
         return 1
 
     result = stacking_analyzer.predict_stacking(args.model, cif_data)
-    if not result.get('success'):
+    if not result.get("success"):
         print(f"预测失败: {result.get('error', '未知错误')}")
         return 1
 
@@ -63,18 +65,17 @@ def main():
     print(f"  预测拓扑: {result['predicted_topology']}")
     print(f"  置信度:   {result['confidence']*100:.1f}%")
 
-    if result.get('top_predictions'):
+    if result.get("top_predictions"):
         print(f"\n  Top 预测:")
-        for topo, prob in result['top_predictions']:
+        for topo, prob in result["top_predictions"]:
             bar = "█" * int(prob * 30)
             print(f"    {topo:<40s} {prob*100:>6.1f}% {bar}")
 
-    if result.get('layer_analysis'):
+    if result.get("layer_analysis"):
         print(f"\n  层分析 ({len(result['layer_analysis'])} 层):")
-        for i, layer in enumerate(result['layer_analysis']):
-            elems = ", ".join(f"{e}:{c}" for e, c in layer['elements'].items())
-            print(f"    层{i+1}: z={layer['z']:.3f} 类型={layer['predicted_type']} "
-                  f"({elems})")
+        for i, layer in enumerate(result["layer_analysis"]):
+            elems = ", ".join(f"{e}:{c}" for e, c in layer["elements"].items())
+            print(f"    层{i+1}: z={layer['z']:.3f} 类型={layer['predicted_type']} " f"({elems})")
 
     return 0
 

@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Embedded git repos
+CGCPT-main*
+
 # C extensions
 *.so
 

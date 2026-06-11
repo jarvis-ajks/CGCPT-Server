@@ -6,7 +6,20 @@ import pytest
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, Column, String, Integer, Float, Text, Boolean, DateTime, JSON, ForeignKey, Enum as SAEnum, Index
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String,
+    Integer,
+    Float,
+    Text,
+    Boolean,
+    DateTime,
+    JSON,
+    ForeignKey,
+    Enum as SAEnum,
+    Index,
+)
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 # Ensure project root is on sys.path
@@ -126,6 +139,7 @@ def db_session():
 # Prototype
 # ---------------------------------------------------------------------------
 
+
 class TestPrototypeModel:
     def test_create_prototype(self, db_session):
         proto = Prototype(
@@ -172,6 +186,7 @@ class TestPrototypeModel:
 # ---------------------------------------------------------------------------
 # Material
 # ---------------------------------------------------------------------------
+
 
 class TestMaterialModel:
     def test_create_material(self, db_session):
@@ -223,9 +238,7 @@ class TestMaterialModel:
         db_session.commit()
 
         for i, formula in enumerate(["BaTiO3", "CaSiO3", "BaTiO3"]):
-            db_session.add(Material(
-                id=f"mat-q-{i}", formula=formula, topology_id="topo-q"
-            ))
+            db_session.add(Material(id=f"mat-q-{i}", formula=formula, topology_id="topo-q"))
         db_session.commit()
 
         results = db_session.query(Material).filter_by(formula="BaTiO3").all()
@@ -245,6 +258,7 @@ class TestMaterialModel:
 # ---------------------------------------------------------------------------
 # Algorithm
 # ---------------------------------------------------------------------------
+
 
 class TestAlgorithmModel:
     def test_create_algorithm(self, db_session):
@@ -267,12 +281,14 @@ class TestAlgorithmModel:
 
     def test_query_active_algorithms(self, db_session):
         for i, active in enumerate([True, True, False]):
-            db_session.add(Algorithm(
-                id=f"algo-act-{i}",
-                name=f"Algo {i}",
-                entry_point=f"mod.fn{i}",
-                is_active=active,
-            ))
+            db_session.add(
+                Algorithm(
+                    id=f"algo-act-{i}",
+                    name=f"Algo {i}",
+                    entry_point=f"mod.fn{i}",
+                    is_active=active,
+                )
+            )
         db_session.commit()
 
         active = db_session.query(Algorithm).filter_by(is_active=True).all()
@@ -288,6 +304,7 @@ class TestAlgorithmModel:
 # ---------------------------------------------------------------------------
 # Task
 # ---------------------------------------------------------------------------
+
 
 class TestTaskModel:
     def test_create_task(self, db_session):
@@ -333,9 +350,7 @@ class TestTaskModel:
         db_session.commit()
 
         for i, status in enumerate(["pending", "running", "completed", "failed"]):
-            db_session.add(Task(
-                id=f"task-qts-{i}", algorithm_id="algo-qts", status=status
-            ))
+            db_session.add(Task(id=f"task-qts-{i}", algorithm_id="algo-qts", status=status))
         db_session.commit()
 
         pending = db_session.query(Task).filter_by(status="pending").all()
@@ -359,6 +374,7 @@ class TestTaskModel:
 # ---------------------------------------------------------------------------
 # ModelArtifact
 # ---------------------------------------------------------------------------
+
 
 class TestModelArtifactModel:
     def test_create_model_artifact(self, db_session):

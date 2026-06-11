@@ -10,6 +10,7 @@ from unittest.mock import patch, MagicMock
 # Health & Info
 # ---------------------------------------------------------------------------
 
+
 class TestHealthCheck:
     def test_health_check(self, client):
         resp = client.get("/api/health")
@@ -22,6 +23,7 @@ class TestHealthCheck:
 # ---------------------------------------------------------------------------
 # Prototypes
 # ---------------------------------------------------------------------------
+
 
 class TestPrototypes:
     def test_list_prototypes(self, client):
@@ -48,6 +50,7 @@ class TestPrototypes:
 # ---------------------------------------------------------------------------
 # Materials
 # ---------------------------------------------------------------------------
+
 
 class TestMaterials:
     def test_list_materials(self, client):
@@ -80,6 +83,7 @@ class TestMaterials:
 # Search
 # ---------------------------------------------------------------------------
 
+
 class TestSearch:
     def test_search_materials(self, client):
         resp = client.get("/api/search?q=Ba")
@@ -111,6 +115,7 @@ class TestSearch:
 # ---------------------------------------------------------------------------
 # Stats & Elements
 # ---------------------------------------------------------------------------
+
 
 class TestStatsAndElements:
     def test_get_stats(self, client):
@@ -145,6 +150,7 @@ class TestStatsAndElements:
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
+
 
 class TestAuth:
     def test_auth_login_success(self, client):
@@ -186,6 +192,7 @@ class TestAuth:
 # 404
 # ---------------------------------------------------------------------------
 
+
 class TestNotFound:
     def test_not_found(self, client):
         resp = client.get("/api/nonexistent")
@@ -197,6 +204,7 @@ class TestNotFound:
 # ---------------------------------------------------------------------------
 # Generate
 # ---------------------------------------------------------------------------
+
 
 class TestGenerate:
     def test_generate_invalid_body(self, client):
@@ -230,6 +238,7 @@ class TestGenerate:
 # Import preview
 # ---------------------------------------------------------------------------
 
+
 class TestImportPreview:
     def test_import_preview_no_files(self, client):
         """POST /api/import/preview without files should return 400."""
@@ -248,6 +257,7 @@ class TestImportPreview:
 # ---------------------------------------------------------------------------
 # DB status (may fail if MySQL not available)
 # ---------------------------------------------------------------------------
+
 
 class TestDBEndpoints:
     def test_db_status(self, client):

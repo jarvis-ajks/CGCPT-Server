@@ -43,7 +43,11 @@ BUILTIN_ALGORITHMS = [
                 "test_ratio": {"type": "number", "default": 0.2, "description": "测试集比例"},
                 "n_iterations": {"type": "integer", "default": 10, "description": "迭代次数"},
                 "cv_folds": {"type": "integer", "default": 5, "description": "交叉验证折数"},
-                "max_depth": {"type": ["integer", "null"], "default": None, "description": "决策树最大深度"},
+                "max_depth": {
+                    "type": ["integer", "null"],
+                    "default": None,
+                    "description": "决策树最大深度",
+                },
             },
         },
         "output_schema": {
@@ -310,11 +314,13 @@ def execute_algorithm_task(self, task_id: str):
         else:
             try:
                 from cgcpt_plugin import instantiate_plugin, CGCPTPlugin
+
                 plugin_instance = instantiate_plugin(algorithm.id)
             except Exception:
                 plugin_instance = None
 
             if plugin_instance is not None:
+
                 def progress_cb(info):
                     try:
                         task.progress = info.get("progress", task.progress)
@@ -350,7 +356,9 @@ def execute_algorithm_task(self, task_id: str):
             task = db.query(Task).filter_by(id=task_id).first()
             if task:
                 task.status = "failed"
-                task.error_message = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()[:2000]}"
+                task.error_message = (
+                    f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()[:2000]}"
+                )
                 task.completed_at = datetime.utcnow()
                 db.commit()
         except Exception:
@@ -408,7 +416,9 @@ def get_task_status(task_id: str) -> dict:
             try:
                 async_result = celery_app.AsyncResult(task.celery_task_id)
                 if async_result.state == "PROGRESS":
-                    result["progress"] = async_result.info.get("current", 0) / max(async_result.info.get("total", 1), 1)
+                    result["progress"] = async_result.info.get("current", 0) / max(
+                        async_result.info.get("total", 1), 1
+                    )
                     result["progress_message"] = async_result.info.get("description", "")
             except Exception:
                 pass

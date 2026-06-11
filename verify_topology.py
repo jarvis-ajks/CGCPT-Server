@@ -29,8 +29,7 @@ def run_verification(template_cif, raw_dir, verified_dir):
     os.makedirs(verified_dir, exist_ok=True)
 
     matcher = StructureMatcher(
-        ltol=0.3, stol=0.8, angle_tol=15.0,
-        primitive_cell=True, scale=True, attempt_supercell=True
+        ltol=0.3, stol=0.8, angle_tol=15.0, primitive_cell=True, scale=True, attempt_supercell=True
     )
 
     try:

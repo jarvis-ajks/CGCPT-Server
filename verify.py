@@ -13,6 +13,7 @@ ssh.connect(HOST, username=USER, pkey=key, timeout=15)
 print("等待服务完全启动...")
 time.sleep(5)
 
+
 def run_cmd(ssh, cmd, desc=""):
     print(f"\n{'='*60}")
     print(f"▶ {desc}")
@@ -28,8 +29,15 @@ def run_cmd(ssh, cmd, desc=""):
     print(f"[退出码] {rc}")
     return out, err, rc
 
-run_cmd(ssh, "curl -s http://localhost/CGCPT/api/health | python3 -m json.tool", "检查 API 健康状态")
-run_cmd(ssh, "curl -s -X POST http://localhost/CGCPT/api/import/preview 2>&1 | head -5", "测试 import/preview 端点")
+
+run_cmd(
+    ssh, "curl -s http://localhost/CGCPT/api/health | python3 -m json.tool", "检查 API 健康状态"
+)
+run_cmd(
+    ssh,
+    "curl -s -X POST http://localhost/CGCPT/api/import/preview 2>&1 | head -5",
+    "测试 import/preview 端点",
+)
 run_cmd(ssh, "ls /opt/CGCPT/root/CGCPT/assets/DataImport*", "确认 DataImport 资源")
 run_cmd(ssh, "systemctl status cgcpt --no-pager | head -8", "检查服务运行状态")
 run_cmd(ssh, "journalctl -u cgcpt --no-pager -n 15", "查看最近日志")

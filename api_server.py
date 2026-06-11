@@ -15,7 +15,16 @@ from typing import Any, Optional
 from flask import Flask, request, jsonify, Response, make_response
 from flask_cors import CORS
 
-from config import ADMIN_USER, ADMIN_PASS, SECRET_KEY, HOST, PORT, DEBUG, DATABASE_DIR as CFG_DATABASE_DIR, CORS_ORIGINS
+from config import (
+    ADMIN_USER,
+    ADMIN_PASS,
+    SECRET_KEY,
+    HOST,
+    PORT,
+    DEBUG,
+    DATABASE_DIR as CFG_DATABASE_DIR,
+    CORS_ORIGINS,
+)
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +36,9 @@ CORS(app, origins=CORS_ORIGINS.split(",") if CORS_ORIGINS else ["*"])
 
 _start_time = time.time()
 
-DATABASE_DIR = CFG_DATABASE_DIR if CFG_DATABASE_DIR else Path(__file__).resolve().parent / "database"
+DATABASE_DIR = (
+    CFG_DATABASE_DIR if CFG_DATABASE_DIR else Path(__file__).resolve().parent / "database"
+)
 
 prototypes_index = {}
 materials_index = {}
@@ -108,6 +119,7 @@ def _get_stack_main() -> Any:
     """
     try:
         from stack_main import LayeredXOGenerator
+
         return LayeredXOGenerator
     except ImportError:
         return None
@@ -121,6 +133,7 @@ def _get_pymatgen_structure() -> Any:
     """
     try:
         from pymatgen.core import Structure
+
         return Structure
     except ImportError:
         return None
@@ -134,6 +147,7 @@ def _get_pymatgen_cifparser() -> Any:
     """
     try:
         from pymatgen.io.cif import CifParser
+
         return CifParser
     except ImportError:
         return None
@@ -147,6 +161,7 @@ def _get_spacegroup_analyzer() -> Any:
     """
     try:
         from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
         return SpacegroupAnalyzer
     except ImportError:
         return None
@@ -160,6 +175,7 @@ def _get_verify_topology() -> Any:
     """
     try:
         import verify_topology
+
         return verify_topology
     except ImportError:
         return None
@@ -173,6 +189,7 @@ def _get_stacking_analyzer() -> Any:
     """
     try:
         import stacking_analyzer
+
         return stacking_analyzer
     except ImportError:
         return None
@@ -198,12 +215,14 @@ def parse_cif_file(cif_path: Path) -> Optional[dict]:
             lattice = struct.lattice
             atom_sites = []
             for site in struct:
-                atom_sites.append({
-                    "element": site.specie.symbol,
-                    "x": round(float(site.frac_coords[0]), 8),
-                    "y": round(float(site.frac_coords[1]), 8),
-                    "z": round(float(site.frac_coords[2]), 8),
-                })
+                atom_sites.append(
+                    {
+                        "element": site.specie.symbol,
+                        "x": round(float(site.frac_coords[0]), 8),
+                        "y": round(float(site.frac_coords[1]), 8),
+                        "z": round(float(site.frac_coords[2]), 8),
+                    }
+                )
             return {
                 "lattice": {
                     "a": round(float(lattice.a), 6),
@@ -218,7 +237,9 @@ def parse_cif_file(cif_path: Path) -> Optional[dict]:
                 "space_group": None,
             }
         except Exception:
-            logger.debug("pymatgen CIF parse failed for %s, falling back to manual parser", cif_path)
+            logger.debug(
+                "pymatgen CIF parse failed for %s, falling back to manual parser", cif_path
+            )
 
     return parse_cif_file_manual(cif_path)
 
@@ -288,18 +309,25 @@ def parse_cif_file_manual(cif_path: Path) -> Optional[dict]:
                             parts = dl.split()
                             if len(parts) >= len(loop_tags):
                                 try:
-                                    elem = parts[tag_idx.get("_atom_site_type_symbol", tag_idx.get("_atom_site_label", 0))]
+                                    elem = parts[
+                                        tag_idx.get(
+                                            "_atom_site_type_symbol",
+                                            tag_idx.get("_atom_site_label", 0),
+                                        )
+                                    ]
                                     elem = re.match(r"[A-Z][a-z]?", elem)
                                     elem = elem.group(0) if elem else parts[0]
                                     fx = float(parts[tag_idx["_atom_site_fract_x"]])
                                     fy = float(parts[tag_idx["_atom_site_fract_y"]])
                                     fz = float(parts[tag_idx["_atom_site_fract_z"]])
-                                    atom_sites.append({
-                                        "element": elem,
-                                        "x": round(fx, 8),
-                                        "y": round(fy, 8),
-                                        "z": round(fz, 8),
-                                    })
+                                    atom_sites.append(
+                                        {
+                                            "element": elem,
+                                            "x": round(fx, 8),
+                                            "y": round(fy, 8),
+                                            "z": round(fz, 8),
+                                        }
+                                    )
                                 except (ValueError, IndexError, KeyError):
                                     pass
                             i += 1
@@ -418,7 +446,12 @@ def build_indexes() -> None:
         element_to_materials[el] = element_to_materials[el]
 
     _index_build_time = time.time() - _t0
-    logger.info("Indexed %d prototypes, %d materials in %.2fs", len(prototypes_index), len(materials_index), _index_build_time)
+    logger.info(
+        "Indexed %d prototypes, %d materials in %.2fs",
+        len(prototypes_index),
+        len(materials_index),
+        _index_build_time,
+    )
 
 
 def _parse_generate_body(body: dict) -> tuple[Optional[dict], Optional[str]]:
@@ -452,7 +485,8 @@ def _parse_generate_body(body: dict) -> tuple[Optional[dict], Optional[str]]:
 
     if not layer_alphas:
         main_count = sum(
-            1 for mode in layer_modes
+            1
+            for mode in layer_modes
             if mode.upper() in ("XO", "XO2", "XO3", "X", "XBO3", "BO3", "XB3O6")
         )
         layer_alphas = [1.0] * main_count
@@ -551,12 +585,14 @@ def _extract_structure_info(gen: Any, result: tuple) -> dict:
 
     atom_sites = []
     for site in structure:
-        atom_sites.append({
-            "element": site.specie.symbol,
-            "x": round(float(site.frac_coords[0]), 8),
-            "y": round(float(site.frac_coords[1]), 8),
-            "z": round(float(site.frac_coords[2]), 8),
-        })
+        atom_sites.append(
+            {
+                "element": site.specie.symbol,
+                "x": round(float(site.frac_coords[0]), 8),
+                "y": round(float(site.frac_coords[1]), 8),
+                "z": round(float(site.frac_coords[2]), 8),
+            }
+        )
 
     lattice_info = {
         "a": round(float(info["a"]), 6),
@@ -622,28 +658,39 @@ def _get_layer_data(gen: Any, result: tuple) -> list[dict]:
         List of layer dictionaries with mode, shift, z, theta, dx, dy, grid coords, and atoms.
     """
     layer_data = gen.get_layer_atoms_for_plot(
-        result[6], result[7], result[8], result[10], result[11], result[12], result[2], result[0].lattice
+        result[6],
+        result[7],
+        result[8],
+        result[10],
+        result[11],
+        result[12],
+        result[2],
+        result[0].lattice,
     )
     serialized = []
     for layer in layer_data:
         atoms_serialized = []
         for elem, fx, fy in layer["atoms"]:
-            atoms_serialized.append({
-                "element": elem,
-                "fx": round(float(fx), 8),
-                "fy": round(float(fy), 8),
-            })
-        serialized.append({
-            "mode": layer["mode"],
-            "shift": layer["shift"],
-            "z": round(float(layer["z"]), 8),
-            "theta": float(layer["theta"]),
-            "dx": float(layer["dx"]),
-            "dy": float(layer["dy"]),
-            "grid_x": layer["grid_x"],
-            "grid_y": layer["grid_y"],
-            "atoms": atoms_serialized,
-        })
+            atoms_serialized.append(
+                {
+                    "element": elem,
+                    "fx": round(float(fx), 8),
+                    "fy": round(float(fy), 8),
+                }
+            )
+        serialized.append(
+            {
+                "mode": layer["mode"],
+                "shift": layer["shift"],
+                "z": round(float(layer["z"]), 8),
+                "theta": float(layer["theta"]),
+                "dx": float(layer["dx"]),
+                "dy": float(layer["dy"]),
+                "grid_x": layer["grid_x"],
+                "grid_y": layer["grid_y"],
+                "atoms": atoms_serialized,
+            }
+        )
     return serialized
 
 
@@ -666,12 +713,14 @@ def _get_primitive_analysis(structure: Any) -> dict:
 
         prim_atom_sites = []
         for site in primitive:
-            prim_atom_sites.append({
-                "element": site.specie.symbol,
-                "x": round(float(site.frac_coords[0]), 8),
-                "y": round(float(site.frac_coords[1]), 8),
-                "z": round(float(site.frac_coords[2]), 8),
-            })
+            prim_atom_sites.append(
+                {
+                    "element": site.specie.symbol,
+                    "x": round(float(site.frac_coords[0]), 8),
+                    "y": round(float(site.frac_coords[1]), 8),
+                    "z": round(float(site.frac_coords[2]), 8),
+                }
+            )
 
         prim_lattice = primitive.lattice
         prim_lattice_info = {
@@ -736,7 +785,9 @@ def _get_primitive_analysis(structure: Any) -> dict:
         return {"error": str(e)}
 
 
-def _get_coordination_analysis(structure: Any, x_element: str, o_element: str, cutoff_radius: Optional[float] = None) -> dict:
+def _get_coordination_analysis(
+    structure: Any, x_element: str, o_element: str, cutoff_radius: Optional[float] = None
+) -> dict:
     """Analyze coordination environments of X atoms with O neighbors.
 
     Args:
@@ -753,6 +804,7 @@ def _get_coordination_analysis(structure: Any, x_element: str, o_element: str, c
 
     try:
         import numpy as np
+
         x_sites = [site for site in structure if site.specie.symbol == x_element]
         if not x_sites:
             return {"environments": [], "message": f"结构中未找到 {x_element} 原子"}
@@ -774,24 +826,28 @@ def _get_coordination_analysis(structure: Any, x_element: str, o_element: str, c
                 dy = nn.coords[1] - center_site.coords[1]
                 dz = nn.coords[2] - center_site.coords[2]
                 dist = float(np.linalg.norm([dx, dy, dz]))
-                neighbor_list.append({
-                    "element": nn.specie.symbol,
-                    "dx": round(float(dx), 6),
-                    "dy": round(float(dy), 6),
-                    "dz": round(float(dz), 6),
-                    "distance": round(dist, 6),
-                })
+                neighbor_list.append(
+                    {
+                        "element": nn.specie.symbol,
+                        "dx": round(float(dx), 6),
+                        "dy": round(float(dy), 6),
+                        "dz": round(float(dz), 6),
+                        "distance": round(dist, 6),
+                    }
+                )
 
-            environments.append({
-                "cn": cn,
-                "center": {
-                    "element": center_site.specie.symbol,
-                    "x": round(float(center_site.frac_coords[0]), 8),
-                    "y": round(float(center_site.frac_coords[1]), 8),
-                    "z": round(float(center_site.frac_coords[2]), 8),
-                },
-                "neighbors": neighbor_list,
-            })
+            environments.append(
+                {
+                    "cn": cn,
+                    "center": {
+                        "element": center_site.specie.symbol,
+                        "x": round(float(center_site.frac_coords[0]), 8),
+                        "y": round(float(center_site.frac_coords[1]), 8),
+                        "z": round(float(center_site.frac_coords[2]), 8),
+                    },
+                    "neighbors": neighbor_list,
+                }
+            )
 
         return {"environments": environments}
     except Exception as e:
@@ -958,7 +1014,9 @@ def check_rate_limit():
     now = time.time()
     if client_ip not in _rate_limit_store:
         _rate_limit_store[client_ip] = []
-    _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if now - t < RATE_LIMIT_WINDOW]
+    _rate_limit_store[client_ip] = [
+        t for t in _rate_limit_store[client_ip] if now - t < RATE_LIMIT_WINDOW
+    ]
     if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
         return jsonify({"error": "Rate limit exceeded"}), 429
     _rate_limit_store[client_ip].append(now)
@@ -989,19 +1047,21 @@ def list_prototypes() -> Response:
         if verified_dir.exists():
             verified_count = len(list(verified_dir.glob("*.cif")))
 
-        results.append({
-            "id": proto_id,
-            "prototype_id": topo.get("prototype_id", ""),
-            "expanded_modes": topo.get("expanded_modes", []),
-            "reference_grid": topo.get("reference_grid", ""),
-            "ideal_space_group": crystal.get("ideal_space_group", ""),
-            "space_group_number": crystal.get("space_group_number", None),
-            "crystal_system": crystal.get("crystal_system", ""),
-            "is_neutral": crystal.get("is_neutral", None),
-            "real_compounds_count": len(real_compounds),
-            "raw_materials_count": raw_count,
-            "verified_materials_count": verified_count,
-        })
+        results.append(
+            {
+                "id": proto_id,
+                "prototype_id": topo.get("prototype_id", ""),
+                "expanded_modes": topo.get("expanded_modes", []),
+                "reference_grid": topo.get("reference_grid", ""),
+                "ideal_space_group": crystal.get("ideal_space_group", ""),
+                "space_group_number": crystal.get("space_group_number", None),
+                "crystal_system": crystal.get("crystal_system", ""),
+                "is_neutral": crystal.get("is_neutral", None),
+                "real_compounds_count": len(real_compounds),
+                "raw_materials_count": raw_count,
+                "verified_materials_count": verified_count,
+            }
+        )
 
     resp = {"prototypes": results, "total": len(results)}
     _api_cache.set("prototypes_list", resp, 300)
@@ -1030,33 +1090,39 @@ def get_prototype(proto_id: str) -> Response:
     for mid in mat_ids:
         if mid in materials_index:
             m = materials_index[mid]
-            materials.append({
-                "material_id": m["material_id"],
-                "formula": m["formula"],
-                "space_group": m["space_group"],
-                "verified": m["verified"],
-            })
+            materials.append(
+                {
+                    "material_id": m["material_id"],
+                    "formula": m["formula"],
+                    "space_group": m["space_group"],
+                    "verified": m["verified"],
+                }
+            )
 
     verified_dir = DATABASE_DIR / f"Verified_Proto_{proto_id}"
     verified_materials = []
     if verified_dir.exists():
         for cif_file in verified_dir.glob("*.cif"):
             material_id, formula, sg = parse_cif_filename(cif_file.name)
-            verified_materials.append({
-                "material_id": material_id,
-                "formula": formula,
-                "space_group": sg,
-                "cif_file": cif_file.name,
-            })
+            verified_materials.append(
+                {
+                    "material_id": material_id,
+                    "formula": formula,
+                    "space_group": sg,
+                    "cif_file": cif_file.name,
+                }
+            )
 
-    return jsonify({
-        "id": proto_id,
-        "topology_theory": data.get("topology_theory", {}),
-        "prototype_crystallography": data.get("prototype_crystallography", {}),
-        "real_compounds": data.get("real_compounds", []),
-        "raw_materials": materials,
-        "verified_materials": verified_materials,
-    })
+    return jsonify(
+        {
+            "id": proto_id,
+            "topology_theory": data.get("topology_theory", {}),
+            "prototype_crystallography": data.get("prototype_crystallography", {}),
+            "real_compounds": data.get("real_compounds", []),
+            "raw_materials": materials,
+            "verified_materials": verified_materials,
+        }
+    )
 
 
 @app.route("/api/materials", methods=["GET"])
@@ -1106,22 +1172,26 @@ def list_materials() -> Response:
     results = []
     for mid in page_ids:
         m = materials_index[mid]
-        results.append({
-            "material_id": m["material_id"],
-            "formula": m["formula"],
-            "space_group": m["space_group"],
-            "elements": m["elements"],
-            "topology": m["topology"],
-            "verified": m["verified"],
-        })
+        results.append(
+            {
+                "material_id": m["material_id"],
+                "formula": m["formula"],
+                "space_group": m["space_group"],
+                "elements": m["elements"],
+                "topology": m["topology"],
+                "verified": m["verified"],
+            }
+        )
 
-    return jsonify({
-        "materials": results,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
-    })
+    return jsonify(
+        {
+            "materials": results,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+        }
+    )
 
 
 @app.route("/api/materials/<material_id>", methods=["GET"])
@@ -1144,17 +1214,19 @@ def get_material(material_id: str) -> Response:
     if cif_path.exists():
         cif_data = parse_cif_file(cif_path)
 
-    return jsonify({
-        "material_id": m["material_id"],
-        "formula": m["formula"],
-        "space_group": m["space_group"],
-        "elements": m["elements"],
-        "topology": m["topology"],
-        "verified": m["verified"],
-        "directory": m["directory"],
-        "cif_file": cif_path.name,
-        "cif_data": cif_data,
-    })
+    return jsonify(
+        {
+            "material_id": m["material_id"],
+            "formula": m["formula"],
+            "space_group": m["space_group"],
+            "elements": m["elements"],
+            "topology": m["topology"],
+            "verified": m["verified"],
+            "directory": m["directory"],
+            "cif_file": cif_path.name,
+            "cif_data": cif_data,
+        }
+    )
 
 
 @app.route("/api/materials/<material_id>/cif", methods=["GET"])
@@ -1178,9 +1250,11 @@ def get_material_cif(material_id: str) -> Response:
 
     try:
         cif_text = cif_path.read_text(encoding="utf-8", errors="ignore")
-        return Response(cif_text, mimetype="text/plain", headers={
-            "Content-Disposition": f"inline; filename={cif_path.name}"
-        })
+        return Response(
+            cif_text,
+            mimetype="text/plain",
+            headers={"Content-Disposition": f"inline; filename={cif_path.name}"},
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1397,8 +1471,12 @@ def verify_topology_endpoint() -> Response:
         from pymatgen.analysis.structure_matcher import StructureMatcher
 
         matcher = StructureMatcher(
-            ltol=0.3, stol=0.8, angle_tol=15.0,
-            primitive_cell=True, scale=True, attempt_supercell=True,
+            ltol=0.3,
+            stol=0.8,
+            angle_tol=15.0,
+            primitive_cell=True,
+            scale=True,
+            attempt_supercell=True,
         )
 
         base_struct = PmgStructure.from_file(str(template_path))
@@ -1412,12 +1490,16 @@ def verify_topology_endpoint() -> Response:
         matches = []
         for mid in test_material_ids:
             if mid not in materials_index:
-                matches.append({"material_id": mid, "is_match": False, "error": "material not found"})
+                matches.append(
+                    {"material_id": mid, "is_match": False, "error": "material not found"}
+                )
                 continue
 
             cif_path = Path(materials_index[mid]["cif_path"])
             if not cif_path.exists():
-                matches.append({"material_id": mid, "is_match": False, "error": "CIF file not found"})
+                matches.append(
+                    {"material_id": mid, "is_match": False, "error": "CIF file not found"}
+                )
                 continue
 
             try:
@@ -1427,7 +1509,9 @@ def verify_topology_endpoint() -> Response:
                 )
 
                 if standardized_test is None:
-                    matches.append({"material_id": mid, "is_match": False, "error": "composition mismatch"})
+                    matches.append(
+                        {"material_id": mid, "is_match": False, "error": "composition mismatch"}
+                    )
                     continue
 
                 is_match = matcher.fit(base_struct, standardized_test)
@@ -1553,20 +1637,24 @@ def get_classifications() -> Response:
 
     by_composition = defaultdict(list)
     for mid, m in materials_index.items():
-        by_composition[m["formula"]].append({
-            "material_id": m["material_id"],
-            "space_group": m["space_group"],
-            "topology": m["topology"],
-            "verified": m["verified"],
-        })
+        by_composition[m["formula"]].append(
+            {
+                "material_id": m["material_id"],
+                "space_group": m["space_group"],
+                "topology": m["topology"],
+                "verified": m["verified"],
+            }
+        )
 
     by_space_group = defaultdict(list)
     for mid, m in materials_index.items():
-        by_space_group[m["space_group"]].append({
-            "material_id": m["material_id"],
-            "formula": m["formula"],
-            "topology": m["topology"],
-        })
+        by_space_group[m["space_group"]].append(
+            {
+                "material_id": m["material_id"],
+                "formula": m["formula"],
+                "topology": m["topology"],
+            }
+        )
 
     resp = {
         "by_topology": by_topology,
@@ -1588,7 +1676,10 @@ def search_materials() -> Response:
     q = request.args.get("q", "").strip()
     # Input validation: limit length and strip dangerous characters
     if len(q) > 200:
-        return jsonify({"error": "Query parameter 'q' exceeds maximum length of 200 characters"}), 400
+        return (
+            jsonify({"error": "Query parameter 'q' exceeds maximum length of 200 characters"}),
+            400,
+        )
     q = re.sub(r"[<>'\";\\]", "", q)
     limit = min(100, max(1, int(request.args.get("limit", 20))))
 
@@ -1619,22 +1710,24 @@ def search_materials() -> Response:
     results.sort(key=lambda x: (-x[0], x[1]["material_id"]))
     results = results[:limit]
 
-    return jsonify({
-        "query": q,
-        "results": [
-            {
-                "material_id": m["material_id"],
-                "formula": m["formula"],
-                "space_group": m["space_group"],
-                "elements": m["elements"],
-                "topology": m["topology"],
-                "verified": m["verified"],
-                "score": score,
-            }
-            for score, m in results
-        ],
-        "total": len(results),
-    })
+    return jsonify(
+        {
+            "query": q,
+            "results": [
+                {
+                    "material_id": m["material_id"],
+                    "formula": m["formula"],
+                    "space_group": m["space_group"],
+                    "elements": m["elements"],
+                    "topology": m["topology"],
+                    "verified": m["verified"],
+                    "score": score,
+                }
+                for score, m in results
+            ],
+            "total": len(results),
+        }
+    )
 
 
 @app.route("/api/stats", methods=["GET"])
@@ -1710,10 +1803,7 @@ def get_elements() -> Response:
 
     sorted_elements = sorted(element_counts.items(), key=lambda x: -x[1])
     resp = {
-        "elements": [
-            {"symbol": el, "materials_count": count}
-            for el, count in sorted_elements
-        ],
+        "elements": [{"symbol": el, "materials_count": count} for el, count in sorted_elements],
         "total": len(sorted_elements),
     }
     _api_cache.set("elements", resp, 300)
@@ -1729,20 +1819,23 @@ def db_status() -> Response:
     """
     try:
         from models import SessionLocal, Prototype, Material, Algorithm, Task, ModelArtifact
+
         db = SessionLocal()
         try:
-            return jsonify({
-                "success": True,
-                "prototypes": db.query(Prototype).count(),
-                "materials": db.query(Material).count(),
-                "algorithms": db.query(Algorithm).filter_by(is_active=True).count(),
-                "tasks_total": db.query(Task).count(),
-                "tasks_pending": db.query(Task).filter_by(status="pending").count(),
-                "tasks_running": db.query(Task).filter_by(status="running").count(),
-                "tasks_completed": db.query(Task).filter_by(status="completed").count(),
-                "tasks_failed": db.query(Task).filter_by(status="failed").count(),
-                "models": db.query(ModelArtifact).filter_by(is_active=True).count(),
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "prototypes": db.query(Prototype).count(),
+                    "materials": db.query(Material).count(),
+                    "algorithms": db.query(Algorithm).filter_by(is_active=True).count(),
+                    "tasks_total": db.query(Task).count(),
+                    "tasks_pending": db.query(Task).filter_by(status="pending").count(),
+                    "tasks_running": db.query(Task).filter_by(status="running").count(),
+                    "tasks_completed": db.query(Task).filter_by(status="completed").count(),
+                    "tasks_failed": db.query(Task).filter_by(status="failed").count(),
+                    "models": db.query(ModelArtifact).filter_by(is_active=True).count(),
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -1758,6 +1851,7 @@ def db_migrate() -> Response:
     """
     try:
         from models import SessionLocal, init_db, migrate_from_filesystem
+
         init_db()
         db = SessionLocal()
         try:
@@ -1779,27 +1873,30 @@ def list_algorithms() -> Response:
     """
     try:
         from models import SessionLocal, Algorithm
+
         db = SessionLocal()
         try:
             algos = db.query(Algorithm).filter_by(is_active=True).all()
-            return jsonify({
-                "success": True,
-                "algorithms": [
-                    {
-                        "id": a.id,
-                        "name": a.name,
-                        "description": a.description,
-                        "version": a.version,
-                        "algorithm_type": a.algorithm_type,
-                        "entry_point": a.entry_point,
-                        "input_schema": a.input_schema,
-                        "output_schema": a.output_schema,
-                        "default_config": a.default_config,
-                    }
-                    for a in algos
-                ],
-                "total": len(algos),
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "algorithms": [
+                        {
+                            "id": a.id,
+                            "name": a.name,
+                            "description": a.description,
+                            "version": a.version,
+                            "algorithm_type": a.algorithm_type,
+                            "entry_point": a.entry_point,
+                            "input_schema": a.input_schema,
+                            "output_schema": a.output_schema,
+                            "default_config": a.default_config,
+                        }
+                        for a in algos
+                    ],
+                    "total": len(algos),
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -1816,6 +1913,7 @@ def register_algorithm() -> Response:
     try:
         from models import SessionLocal
         from task_worker import register_external_algorithm
+
         data = request.get_json(force=True)
         algo_id = register_external_algorithm(data)
         return jsonify({"success": True, "algorithm_id": algo_id})
@@ -1835,6 +1933,7 @@ def deactivate_algorithm(algo_id: str) -> Response:
     """
     try:
         from models import SessionLocal, Algorithm
+
         db = SessionLocal()
         try:
             algo = db.query(Algorithm).filter_by(id=algo_id).first()
@@ -1858,6 +1957,7 @@ def create_task() -> Response:
     """
     try:
         from task_worker import submit_task
+
         data = request.get_json(force=True)
         algorithm_id = data.get("algorithm_id")
         input_data = data.get("input_data", {})
@@ -1882,6 +1982,7 @@ def get_task(task_id: str) -> Response:
     """
     try:
         from task_worker import get_task_status
+
         result = get_task_status(task_id)
         if "error" in result and result.get("error") == "Task not found":
             return jsonify({"success": False, "error": "Task not found"}), 404
@@ -1899,6 +2000,7 @@ def list_tasks() -> Response:
     """
     try:
         from models import SessionLocal, Task, Algorithm
+
         db = SessionLocal()
         try:
             status_filter = request.args.get("status")
@@ -1913,24 +2015,26 @@ def list_tasks() -> Response:
             query = query.order_by(Task.created_at.desc()).limit(limit)
 
             tasks = query.all()
-            return jsonify({
-                "success": True,
-                "tasks": [
-                    {
-                        "task_id": t.id,
-                        "algorithm_id": t.algorithm_id,
-                        "status": t.status,
-                        "progress": t.progress,
-                        "progress_message": t.progress_message,
-                        "error_message": t.error_message,
-                        "created_at": t.created_at.isoformat() if t.created_at else None,
-                        "started_at": t.started_at.isoformat() if t.started_at else None,
-                        "completed_at": t.completed_at.isoformat() if t.completed_at else None,
-                    }
-                    for t in tasks
-                ],
-                "total": len(tasks),
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "tasks": [
+                        {
+                            "task_id": t.id,
+                            "algorithm_id": t.algorithm_id,
+                            "status": t.status,
+                            "progress": t.progress,
+                            "progress_message": t.progress_message,
+                            "error_message": t.error_message,
+                            "created_at": t.created_at.isoformat() if t.created_at else None,
+                            "started_at": t.started_at.isoformat() if t.started_at else None,
+                            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+                        }
+                        for t in tasks
+                    ],
+                    "total": len(tasks),
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -1946,25 +2050,28 @@ def list_models_db() -> Response:
     """
     try:
         from models import SessionLocal, ModelArtifact
+
         db = SessionLocal()
         try:
             models = db.query(ModelArtifact).filter_by(is_active=True).all()
-            return jsonify({
-                "success": True,
-                "models": [
-                    {
-                        "id": m.id,
-                        "algorithm_id": m.algorithm_id,
-                        "name": m.name,
-                        "model_type": m.model_type,
-                        "metrics": m.metrics,
-                        "feature_keys": m.feature_keys,
-                        "created_at": m.created_at.isoformat() if m.created_at else None,
-                    }
-                    for m in models
-                ],
-                "total": len(models),
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "models": [
+                        {
+                            "id": m.id,
+                            "algorithm_id": m.algorithm_id,
+                            "name": m.name,
+                            "model_type": m.model_type,
+                            "metrics": m.metrics,
+                            "feature_keys": m.feature_keys,
+                            "created_at": m.created_at.isoformat() if m.created_at else None,
+                        }
+                        for m in models
+                    ],
+                    "total": len(models),
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -1980,6 +2087,7 @@ def db_list_prototypes() -> Response:
     """
     try:
         from models import SessionLocal, Prototype
+
         db = SessionLocal()
         try:
             query = db.query(Prototype)
@@ -1987,24 +2095,26 @@ def db_list_prototypes() -> Response:
             if crystal_system:
                 query = query.filter_by(crystal_system=crystal_system)
             prototypes = query.all()
-            return jsonify({
-                "success": True,
-                "prototypes": [
-                    {
-                        "id": p.id,
-                        "prototype_id": p.prototype_id,
-                        "expanded_modes": p.expanded_modes,
-                        "ideal_space_group": p.ideal_space_group,
-                        "space_group_number": p.space_group_number,
-                        "crystal_system": p.crystal_system,
-                        "is_neutral": p.is_neutral,
-                        "created_at": p.created_at.isoformat() if p.created_at else None,
-                        "updated_at": p.updated_at.isoformat() if p.updated_at else None,
-                    }
-                    for p in prototypes
-                ],
-                "total": len(prototypes),
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "prototypes": [
+                        {
+                            "id": p.id,
+                            "prototype_id": p.prototype_id,
+                            "expanded_modes": p.expanded_modes,
+                            "ideal_space_group": p.ideal_space_group,
+                            "space_group_number": p.space_group_number,
+                            "crystal_system": p.crystal_system,
+                            "is_neutral": p.is_neutral,
+                            "created_at": p.created_at.isoformat() if p.created_at else None,
+                            "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+                        }
+                        for p in prototypes
+                    ],
+                    "total": len(prototypes),
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -2023,29 +2133,32 @@ def db_get_prototype(prototype_id: str) -> Response:
     """
     try:
         from models import SessionLocal, Prototype, Material
+
         db = SessionLocal()
         try:
             proto = db.query(Prototype).filter_by(id=prototype_id).first()
             if not proto:
                 return jsonify({"success": False, "error": "Prototype not found"}), 404
             materials_count = db.query(Material).filter_by(topology_id=prototype_id).count()
-            return jsonify({
-                "success": True,
-                "prototype": {
-                    "id": proto.id,
-                    "prototype_id": proto.prototype_id,
-                    "expanded_modes": proto.expanded_modes,
-                    "reference_grid": proto.reference_grid,
-                    "ideal_space_group": proto.ideal_space_group,
-                    "space_group_number": proto.space_group_number,
-                    "crystal_system": proto.crystal_system,
-                    "is_neutral": proto.is_neutral,
-                    "topology_data": proto.topology_data,
-                    "materials_count": materials_count,
-                    "created_at": proto.created_at.isoformat() if proto.created_at else None,
-                    "updated_at": proto.updated_at.isoformat() if proto.updated_at else None,
-                },
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "prototype": {
+                        "id": proto.id,
+                        "prototype_id": proto.prototype_id,
+                        "expanded_modes": proto.expanded_modes,
+                        "reference_grid": proto.reference_grid,
+                        "ideal_space_group": proto.ideal_space_group,
+                        "space_group_number": proto.space_group_number,
+                        "crystal_system": proto.crystal_system,
+                        "is_neutral": proto.is_neutral,
+                        "topology_data": proto.topology_data,
+                        "materials_count": materials_count,
+                        "created_at": proto.created_at.isoformat() if proto.created_at else None,
+                        "updated_at": proto.updated_at.isoformat() if proto.updated_at else None,
+                    },
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -2064,6 +2177,7 @@ def db_list_materials() -> Response:
     """
     try:
         from models import SessionLocal, Material
+
         db = SessionLocal()
         try:
             query = db.query(Material)
@@ -2105,35 +2219,37 @@ def db_list_materials() -> Response:
 
             total = query.count()
             materials = query.offset(offset).limit(page_size).all()
-            return jsonify({
-                "success": True,
-                "materials": [
-                    {
-                        "id": m.id,
-                        "formula": m.formula,
-                        "space_group": m.space_group,
-                        "topology_id": m.topology_id,
-                        "elements": m.elements,
-                        "lattice_a": m.lattice_a,
-                        "lattice_b": m.lattice_b,
-                        "lattice_c": m.lattice_c,
-                        "lattice_alpha": m.lattice_alpha,
-                        "lattice_beta": m.lattice_beta,
-                        "lattice_gamma": m.lattice_gamma,
-                        "n_atoms": m.n_atoms,
-                        "is_verified": m.is_verified,
-                        "source": m.source,
-                        "cif_path": m.cif_path,
-                        "created_at": m.created_at.isoformat() if m.created_at else None,
-                        "updated_at": m.updated_at.isoformat() if m.updated_at else None,
-                    }
-                    for m in materials
-                ],
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": (total + page_size - 1) // page_size,
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "materials": [
+                        {
+                            "id": m.id,
+                            "formula": m.formula,
+                            "space_group": m.space_group,
+                            "topology_id": m.topology_id,
+                            "elements": m.elements,
+                            "lattice_a": m.lattice_a,
+                            "lattice_b": m.lattice_b,
+                            "lattice_c": m.lattice_c,
+                            "lattice_alpha": m.lattice_alpha,
+                            "lattice_beta": m.lattice_beta,
+                            "lattice_gamma": m.lattice_gamma,
+                            "n_atoms": m.n_atoms,
+                            "is_verified": m.is_verified,
+                            "source": m.source,
+                            "cif_path": m.cif_path,
+                            "created_at": m.created_at.isoformat() if m.created_at else None,
+                            "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+                        }
+                        for m in materials
+                    ],
+                    "total": total,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": (total + page_size - 1) // page_size,
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -2152,35 +2268,38 @@ def db_get_material(material_id: str) -> Response:
     """
     try:
         from models import SessionLocal, Material
+
         db = SessionLocal()
         try:
             mat = db.query(Material).filter_by(id=material_id).first()
             if not mat:
                 return jsonify({"success": False, "error": "Material not found"}), 404
-            return jsonify({
-                "success": True,
-                "material": {
-                    "id": mat.id,
-                    "formula": mat.formula,
-                    "space_group": mat.space_group,
-                    "topology_id": mat.topology_id,
-                    "elements": mat.elements,
-                    "lattice_a": mat.lattice_a,
-                    "lattice_b": mat.lattice_b,
-                    "lattice_c": mat.lattice_c,
-                    "lattice_alpha": mat.lattice_alpha,
-                    "lattice_beta": mat.lattice_beta,
-                    "lattice_gamma": mat.lattice_gamma,
-                    "n_atoms": mat.n_atoms,
-                    "is_verified": mat.is_verified,
-                    "source": mat.source,
-                    "cif_path": mat.cif_path,
-                    "cif_content": mat.cif_content,
-                    "metadata_json": mat.metadata_json,
-                    "created_at": mat.created_at.isoformat() if mat.created_at else None,
-                    "updated_at": mat.updated_at.isoformat() if mat.updated_at else None,
-                },
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "material": {
+                        "id": mat.id,
+                        "formula": mat.formula,
+                        "space_group": mat.space_group,
+                        "topology_id": mat.topology_id,
+                        "elements": mat.elements,
+                        "lattice_a": mat.lattice_a,
+                        "lattice_b": mat.lattice_b,
+                        "lattice_c": mat.lattice_c,
+                        "lattice_alpha": mat.lattice_alpha,
+                        "lattice_beta": mat.lattice_beta,
+                        "lattice_gamma": mat.lattice_gamma,
+                        "n_atoms": mat.n_atoms,
+                        "is_verified": mat.is_verified,
+                        "source": mat.source,
+                        "cif_path": mat.cif_path,
+                        "cif_content": mat.cif_content,
+                        "metadata_json": mat.metadata_json,
+                        "created_at": mat.created_at.isoformat() if mat.created_at else None,
+                        "updated_at": mat.updated_at.isoformat() if mat.updated_at else None,
+                    },
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -2199,6 +2318,7 @@ def db_delete_material(material_id: str) -> Response:
     """
     try:
         from models import SessionLocal, Material
+
         db = SessionLocal()
         try:
             mat = db.query(Material).filter_by(id=material_id).first()
@@ -2222,6 +2342,7 @@ def db_batch_update_materials() -> Response:
     """
     try:
         from models import SessionLocal, Material
+
         db = SessionLocal()
         try:
             data = request.get_json(force=True)
@@ -2266,6 +2387,7 @@ def db_detailed_stats() -> Response:
     """
     try:
         from models import SessionLocal, Prototype, Material, Algorithm, Task, ModelArtifact
+
         db = SessionLocal()
         try:
             total_prototypes = db.query(Prototype).count()
@@ -2276,7 +2398,9 @@ def db_detailed_stats() -> Response:
             topology_counts = {}
             for (topo_id,) in db.query(Material.topology_id).distinct().all():
                 if topo_id:
-                    topology_counts[topo_id] = db.query(Material).filter_by(topology_id=topo_id).count()
+                    topology_counts[topo_id] = (
+                        db.query(Material).filter_by(topology_id=topo_id).count()
+                    )
 
             sg_counts = {}
             for (sg,) in db.query(Material.space_group).distinct().all():
@@ -2290,16 +2414,28 @@ def db_detailed_stats() -> Response:
             active_algos = db.query(Algorithm).filter_by(is_active=True).count()
             total_models = db.query(ModelArtifact).filter_by(is_active=True).count()
 
-            return jsonify({
-                "success": True,
-                "materials": {"total": total_materials, "verified": verified_materials, "raw": raw_materials},
-                "prototypes": total_prototypes,
-                "topology_counts": topology_counts,
-                "space_group_counts": sg_counts,
-                "tasks": {"pending": pending, "running": running, "completed": completed, "failed": failed, "total": pending + running + completed + failed},
-                "algorithms": active_algos,
-                "models": total_models,
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "materials": {
+                        "total": total_materials,
+                        "verified": verified_materials,
+                        "raw": raw_materials,
+                    },
+                    "prototypes": total_prototypes,
+                    "topology_counts": topology_counts,
+                    "space_group_counts": sg_counts,
+                    "tasks": {
+                        "pending": pending,
+                        "running": running,
+                        "completed": completed,
+                        "failed": failed,
+                        "total": pending + running + completed + failed,
+                    },
+                    "algorithms": active_algos,
+                    "models": total_models,
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -2315,26 +2451,29 @@ def list_plugins() -> Response:
     """
     try:
         from models import SessionLocal, Algorithm
+
         db = SessionLocal()
         try:
             algos = db.query(Algorithm).filter(Algorithm.is_active == True).all()
-            return jsonify({
-                "success": True,
-                "plugins": [
-                    {
-                        "id": a.id,
-                        "name": a.name,
-                        "description": a.description,
-                        "algorithm_type": a.algorithm_type,
-                        "entry_point": a.entry_point,
-                        "input_schema": a.input_schema,
-                        "output_schema": a.output_schema,
-                        "default_config": a.default_config,
-                        "version": a.version,
-                    }
-                    for a in algos
-                ],
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "plugins": [
+                        {
+                            "id": a.id,
+                            "name": a.name,
+                            "description": a.description,
+                            "algorithm_type": a.algorithm_type,
+                            "entry_point": a.entry_point,
+                            "input_schema": a.input_schema,
+                            "output_schema": a.output_schema,
+                            "default_config": a.default_config,
+                            "version": a.version,
+                        }
+                        for a in algos
+                    ],
+                }
+            )
         finally:
             db.close()
     except Exception as e:
@@ -2350,6 +2489,7 @@ def register_plugin() -> Response:
     """
     try:
         from task_worker import register_external_algorithm
+
         data = request.get_json(force=True)
         required = ["id", "name", "entry_point"]
         for r in required:
@@ -2373,6 +2513,7 @@ def deactivate_plugin(algo_id: str) -> Response:
     """
     try:
         from models import SessionLocal, Algorithm
+
         db = SessionLocal()
         try:
             algo = db.query(Algorithm).filter_by(id=algo_id).first()
@@ -2399,6 +2540,7 @@ def execute_plugin(algo_id: str) -> Response:
     """
     try:
         from task_worker import submit_task
+
         data = request.get_json(force=True) or {}
         input_data = data.get("input_data", data)
         task_id = submit_task(algo_id, input_data)
@@ -2417,6 +2559,7 @@ def discover_plugins_route() -> Response:
     """
     try:
         from cgcpt_plugin import discover_plugins
+
         plugin_dir = request.get_json(force=True).get("plugin_dir") if request.is_json else None
         discovered = discover_plugins(plugin_dir)
         return jsonify({"success": True, "discovered": discovered, "count": len(discovered)})
@@ -2433,12 +2576,15 @@ def list_discovered_plugins() -> Response:
     """
     try:
         from cgcpt_plugin import get_plugin_registry
+
         registry = get_plugin_registry()
-        return jsonify({
-            "success": True,
-            "plugins": [info["definition"] for info in registry.values()],
-            "count": len(registry),
-        })
+        return jsonify(
+            {
+                "success": True,
+                "plugins": [info["definition"] for info in registry.values()],
+                "count": len(registry),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
@@ -2453,6 +2599,7 @@ def register_all_discovered() -> Response:
     try:
         from cgcpt_plugin import discover_plugins, get_plugin_registry
         from task_worker import register_external_algorithm
+
         discover_plugins()
         registry = get_plugin_registry()
         registered = []
@@ -2486,6 +2633,7 @@ def check_auth(request: Any) -> bool:
         token = auth[7:]
         try:
             import base64
+
             decoded = base64.b64decode(token).decode("utf-8")
             if ":" in decoded:
                 user, pwd = decoded.split(":", 1)
@@ -2507,6 +2655,7 @@ def auth_login() -> Response:
     password = data.get("password", "")
     if username == ADMIN_USER and password == ADMIN_PASS:
         import base64
+
         token = base64.b64encode(f"{username}:{password}".encode()).decode()
         return jsonify({"success": True, "token": token})
     return jsonify({"success": False, "error": "用户名或密码错误"}), 401
@@ -2603,13 +2752,15 @@ def upload_model() -> Response:
         finally:
             db.close()
 
-        return jsonify({
-            "success": True,
-            "model_id": model_id,
-            "model_class": model_class,
-            "file_path": str(save_path),
-            "metrics": metrics,
-        })
+        return jsonify(
+            {
+                "success": True,
+                "model_id": model_id,
+                "model_class": model_class,
+                "file_path": str(save_path),
+                "metrics": metrics,
+            }
+        )
     except Exception as e:
         logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
@@ -2629,6 +2780,7 @@ def delete_model(model_id: str) -> Response:
         return jsonify({"success": False, "error": "需要管理员权限"}), 401
     try:
         from models import SessionLocal, ModelArtifact
+
         db = SessionLocal()
         try:
             artifact = db.query(ModelArtifact).filter_by(id=model_id).first()
@@ -2659,14 +2811,17 @@ def activate_model(model_id: str) -> Response:
         return jsonify({"success": False, "error": "需要管理员权限"}), 401
     try:
         from models import SessionLocal, ModelArtifact
+
         db = SessionLocal()
         try:
             artifact = db.query(ModelArtifact).filter_by(id=model_id).first()
             if not artifact:
                 return jsonify({"success": False, "error": "模型不存在"}), 404
-            same_type = db.query(ModelArtifact).filter_by(
-                model_type=artifact.model_type, is_active=True
-            ).all()
+            same_type = (
+                db.query(ModelArtifact)
+                .filter_by(model_type=artifact.model_type, is_active=True)
+                .all()
+            )
             for a in same_type:
                 a.is_active = False
             artifact.is_active = True
@@ -2702,20 +2857,22 @@ def stacking_scan() -> Response:
         return jsonify({"success": False, "error": "stacking_analyzer模块未加载"}), 500
     try:
         samples = sa.scan_database_cifs()
-        return jsonify({
-            "success": True,
-            "n_samples": len(samples),
-            "samples": [
-                {
-                    "filename": s["filename"],
-                    "topology": s["topology"],
-                    "formula": s["formula"],
-                    "source": s["source"],
-                    "n_features": len(s["features"]),
-                }
-                for s in samples
-            ],
-        })
+        return jsonify(
+            {
+                "success": True,
+                "n_samples": len(samples),
+                "samples": [
+                    {
+                        "filename": s["filename"],
+                        "topology": s["topology"],
+                        "formula": s["formula"],
+                        "source": s["source"],
+                        "n_features": len(s["features"]),
+                    }
+                    for s in samples
+                ],
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
@@ -2744,8 +2901,11 @@ def stacking_train() -> Response:
         test_ratio = max(0.05, min(0.5, test_ratio))
 
         result = sa.train_decision_tree(
-            test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
-            cv_folds=cv_folds, max_sequences=max_sequences
+            test_ratio=test_ratio,
+            max_depth=max_depth,
+            random_state=random_state,
+            cv_folds=cv_folds,
+            max_sequences=max_sequences,
         )
 
         if result.get("success") and result.get("model_id"):
@@ -2786,9 +2946,12 @@ def stacking_train_stream() -> Response:
     def run_training() -> None:
         try:
             result = sa.train_decision_tree(
-                test_ratio=test_ratio, max_depth=max_depth, random_state=random_state,
-                cv_folds=cv_folds, max_sequences=max_sequences,
-                progress_callback=on_progress
+                test_ratio=test_ratio,
+                max_depth=max_depth,
+                random_state=random_state,
+                cv_folds=cv_folds,
+                max_sequences=max_sequences,
+                progress_callback=on_progress,
             )
             if result.get("success") and result.get("model_id"):
                 sa.save_model_meta(result["model_id"], result)
@@ -2815,8 +2978,11 @@ def stacking_train_stream() -> Response:
             elif kind == "error":
                 yield f"event: error\ndata: {json.dumps(_sanitize_json_value({'error': data}), ensure_ascii=False, allow_nan=False)}\n\n"
 
-    return Response(generate(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/api/stacking/predict", methods=["POST"])
@@ -2882,17 +3048,21 @@ def stacking_upload() -> Response:
         features = sa.extract_features(cif_data)
         layer_features = sa.extract_layer_features(cif_data)
 
-        return jsonify(_sanitize_json_value({
-            "success": True,
-            "filename": f.filename,
-            "formula": cif_data.get("formula", ""),
-            "space_group": cif_data.get("space_group", ""),
-            "lattice": cif_data.get("lattice", {}),
-            "n_atoms": len(cif_data.get("atom_sites", [])),
-            "features": features,
-            "layer_analysis": layer_features,
-            "cif_text": cif_text,
-        }))
+        return jsonify(
+            _sanitize_json_value(
+                {
+                    "success": True,
+                    "filename": f.filename,
+                    "formula": cif_data.get("formula", ""),
+                    "space_group": cif_data.get("space_group", ""),
+                    "lattice": cif_data.get("lattice", {}),
+                    "n_atoms": len(cif_data.get("atom_sites", [])),
+                    "features": features,
+                    "layer_analysis": layer_features,
+                    "cif_text": cif_text,
+                }
+            )
+        )
     except Exception as e:
         logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
@@ -2980,6 +3150,7 @@ def stacking_improvement_history() -> Response:
     """
     try:
         import self_improver as si
+
         trajectory = si.get_improvement_trajectory()
         return jsonify({"success": True, "trajectory": trajectory, "n_iterations": len(trajectory)})
     except ImportError:
@@ -3000,6 +3171,7 @@ def stacking_error_analysis(model_id: str) -> Response:
     """
     try:
         import self_improver as si
+
         result = si.analyze_errors(model_id)
         return jsonify(_sanitize_json_value(result))
     except ImportError:
@@ -3033,15 +3205,19 @@ def stacking_analyze() -> Response:
         features = sa.extract_features(cif_data)
         layer_features = sa.extract_layer_features(cif_data)
 
-        return jsonify(_sanitize_json_value({
-            "success": True,
-            "formula": cif_data.get("formula", ""),
-            "space_group": cif_data.get("space_group", ""),
-            "lattice": cif_data.get("lattice", {}),
-            "n_atoms": len(cif_data.get("atom_sites", [])),
-            "features": features,
-            "layer_analysis": layer_features,
-        }))
+        return jsonify(
+            _sanitize_json_value(
+                {
+                    "success": True,
+                    "formula": cif_data.get("formula", ""),
+                    "space_group": cif_data.get("space_group", ""),
+                    "lattice": cif_data.get("lattice", {}),
+                    "n_atoms": len(cif_data.get("atom_sites", [])),
+                    "features": features,
+                    "layer_analysis": layer_features,
+                }
+            )
+        )
     except Exception as e:
         logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
@@ -3095,31 +3271,39 @@ def stacking_batch_predict() -> Response:
             if pred.get("success"):
                 total_correct += pred.get("n_correct", 0)
                 total_layers += pred.get("n_total", 0)
-                results.append({
-                    "layer_modes": seq,
-                    "expanded_modes": pred.get("expanded_modes", []),
-                    "accuracy": pred.get("accuracy", 0),
-                    "n_correct": pred.get("n_correct", 0),
-                    "n_total": pred.get("n_total", 0),
-                    "predictions": pred.get("predictions", []),
-                })
+                results.append(
+                    {
+                        "layer_modes": seq,
+                        "expanded_modes": pred.get("expanded_modes", []),
+                        "accuracy": pred.get("accuracy", 0),
+                        "n_correct": pred.get("n_correct", 0),
+                        "n_total": pred.get("n_total", 0),
+                        "predictions": pred.get("predictions", []),
+                    }
+                )
             else:
-                results.append({
-                    "layer_modes": seq,
-                    "error": pred.get("error", "预测失败"),
-                })
+                results.append(
+                    {
+                        "layer_modes": seq,
+                        "error": pred.get("error", "预测失败"),
+                    }
+                )
 
         overall_accuracy = round(total_correct / total_layers, 4) if total_layers > 0 else 0
 
-        return jsonify(_sanitize_json_value({
-            "success": True,
-            "model_id": model_id,
-            "n_sequences": len(results),
-            "overall_accuracy": overall_accuracy,
-            "total_correct": total_correct,
-            "total_layers": total_layers,
-            "results": results,
-        }))
+        return jsonify(
+            _sanitize_json_value(
+                {
+                    "success": True,
+                    "model_id": model_id,
+                    "n_sequences": len(results),
+                    "overall_accuracy": overall_accuracy,
+                    "total_correct": total_correct,
+                    "total_layers": total_layers,
+                    "results": results,
+                }
+            )
+        )
     except Exception as e:
         logger.error("Exception occurred", exc_info=True)
         return jsonify({"success": False, "error": str(e)})
@@ -3151,9 +3335,17 @@ def _auto_classify_topology(atom_sites: list[dict], lattice: dict) -> tuple[Opti
     z_coords = sorted([a["z"] for a in atom_sites])
     n_distinct_layers = len(set(round(z, 2) for z in z_coords))
 
-    c_ratio = lattice["c"] / (lattice["a"] + lattice["b"]) / 2 if (lattice["a"] + lattice["b"]) > 0 else 1.0
+    c_ratio = (
+        lattice["c"] / (lattice["a"] + lattice["b"]) / 2
+        if (lattice["a"] + lattice["b"]) > 0
+        else 1.0
+    )
     has_o = "O" in element_counts
-    x_candidates = [el for el, cnt in element_counts.items() if el not in ("O", "F", "Cl", "Br", "I") and cnt >= 3]
+    x_candidates = [
+        el
+        for el, cnt in element_counts.items()
+        if el not in ("O", "F", "Cl", "Br", "I") and cnt >= 3
+    ]
     m_candidates = [el for el in element_counts if el not in ("O", "F", "Cl", "Br", "I")]
     o_count = element_counts.get("O", 0)
     x_count = sum(element_counts.get(el, 0) for el in x_candidates)
@@ -3203,21 +3395,21 @@ def import_preview() -> Response:
     """
     build_indexes()
     try:
-        if 'files' not in request.files:
+        if "files" not in request.files:
             return jsonify({"success": False, "error": "No files uploaded"}), 400
 
-        files = request.files.getlist('files')
+        files = request.files.getlist("files")
         results = []
-        target_topology = request.form.get('topology', '').strip()
+        target_topology = request.form.get("topology", "").strip()
 
         for f in files:
-            if not f.filename or not f.filename.lower().endswith('.cif'):
+            if not f.filename or not f.filename.lower().endswith(".cif"):
                 results.append({"filename": f.filename, "error": "Only .cif files are supported"})
                 continue
 
-            cif_text = f.read().decode('utf-8', errors='ignore')
+            cif_text = f.read().decode("utf-8", errors="ignore")
 
-            with tempfile.NamedTemporaryFile(suffix='.cif', delete=False, mode='w') as tmp:
+            with tempfile.NamedTemporaryFile(suffix=".cif", delete=False, mode="w") as tmp:
                 tmp.write(cif_text)
                 tmp_path = Path(tmp.name)
 
@@ -3237,7 +3429,11 @@ def import_preview() -> Response:
             formula = cif_data.get("formula", "")
             space_group = cif_data.get("space_group", "")
 
-            elements_in_formula = extract_elements_from_formula(formula) if formula else list(set(a["element"] for a in atom_sites))
+            elements_in_formula = (
+                extract_elements_from_formula(formula)
+                if formula
+                else list(set(a["element"] for a in atom_sites))
+            )
             material_id_stem = Path(f.filename).stem
             mp_match = re.search(r"(mp-\d+)", material_id_stem)
             material_id = mp_match.group(1) if mp_match else material_id_stem
@@ -3246,30 +3442,34 @@ def import_preview() -> Response:
             suggested_topo, confidence = _auto_classify_topology(atom_sites, lattice)
             final_topo = target_topology or suggested_topo
 
-            results.append({
-                "filename": f.filename,
-                "material_id": material_id,
-                "formula": formula,
-                "space_group": space_group,
-                "elements": elements_in_formula,
-                "n_atoms": len(atom_sites),
-                "lattice": lattice,
-                "existing": existing,
-                "suggested_topology": suggested_topo,
-                "confidence": confidence,
-                "assigned_topology": final_topo,
-                "cif_preview": cif_text[:500] + ("..." if len(cif_text) > 500 else ""),
-            })
+            results.append(
+                {
+                    "filename": f.filename,
+                    "material_id": material_id,
+                    "formula": formula,
+                    "space_group": space_group,
+                    "elements": elements_in_formula,
+                    "n_atoms": len(atom_sites),
+                    "lattice": lattice,
+                    "existing": existing,
+                    "suggested_topology": suggested_topo,
+                    "confidence": confidence,
+                    "assigned_topology": final_topo,
+                    "cif_preview": cif_text[:500] + ("..." if len(cif_text) > 500 else ""),
+                }
+            )
 
         all_protos = list(prototypes_index.keys())
-        return jsonify({
-            "success": True,
-            "results": results,
-            "available_topologies": all_protos,
-            "total_files": len(files),
-            "parsed": sum(1 for r in results if "error" not in r),
-            "errors": sum(1 for r in results if "error" in r),
-        })
+        return jsonify(
+            {
+                "success": True,
+                "results": results,
+                "available_topologies": all_protos,
+                "total_files": len(files),
+                "parsed": sum(1 for r in results if "error" not in r),
+                "errors": sum(1 for r in results if "error" in r),
+            }
+        )
     except Exception as e:
         logger.error("import_preview failed: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3289,7 +3489,7 @@ def import_materials() -> Response:
     build_indexes()
     try:
         body = request.get_json(force=True) if request.is_json else {}
-        items = body.get('items', [])
+        items = body.get("items", [])
 
         if not items:
             return jsonify({"success": False, "error": "No items to import"}), 400
@@ -3299,9 +3499,9 @@ def import_materials() -> Response:
         errors = []
 
         for item in items:
-            material_id = item.get('material_id', '')
-            topology = item.get('topology', '').strip()
-            cif_content = item.get('cif_content', '')
+            material_id = item.get("material_id", "")
+            topology = item.get("topology", "").strip()
+            cif_content = item.get("cif_content", "")
 
             if not material_id or not topology or not cif_content:
                 errors.append({"material_id": material_id, "reason": "Missing required fields"})
@@ -3314,19 +3514,19 @@ def import_materials() -> Response:
             proto_dir = DATABASE_DIR / f"Raw_Proto_{topology}"
             proto_dir.mkdir(parents=True, exist_ok=True)
 
-            formula = item.get('formula', '')
-            space_group = item.get('space_group', '')
-            elements = item.get('elements', [])
-            safe_filename = re.sub(r'[^\w\-.]', '_', material_id)
-            if not safe_filename.endswith('.cif'):
-                safe_filename += '.cif'
+            formula = item.get("formula", "")
+            space_group = item.get("space_group", "")
+            elements = item.get("elements", [])
+            safe_filename = re.sub(r"[^\w\-.]", "_", material_id)
+            if not safe_filename.endswith(".cif"):
+                safe_filename += ".cif"
             cif_path = proto_dir / safe_filename
 
             if cif_path.exists():
                 skipped.append(material_id)
                 continue
 
-            cif_path.write_text(cif_content, encoding='utf-8')
+            cif_path.write_text(cif_content, encoding="utf-8")
 
             mat_entry = {
                 "material_id": material_id,
@@ -3346,22 +3546,26 @@ def import_materials() -> Response:
                 element_to_materials.setdefault(el, set()).add(material_id)
                 all_elements.add(el)
 
-            imported.append({
-                "material_id": material_id,
-                "topology": topology,
-                "path": str(cif_path.relative_to(DATABASE_DIR)),
-            })
+            imported.append(
+                {
+                    "material_id": material_id,
+                    "topology": topology,
+                    "path": str(cif_path.relative_to(DATABASE_DIR)),
+                }
+            )
 
         _api_cache.invalidate("prototypes_list", "stats", "classifications", "elements")
 
-        return jsonify({
-            "success": True,
-            "imported": imported,
-            "skipped": skipped,
-            "errors": errors,
-            "total_new": len(imported),
-            "total_materials_now": len(materials_index),
-        })
+        return jsonify(
+            {
+                "success": True,
+                "imported": imported,
+                "skipped": skipped,
+                "errors": errors,
+                "total_new": len(imported),
+                "total_materials_now": len(materials_index),
+            }
+        )
     except Exception as e:
         logger.error("import_materials failed: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3380,14 +3584,16 @@ def import_templates() -> Response:
         topo = data.get("topology_theory", {})
         crystal = data.get("prototype_crystallography", {})
         mat_ids = topology_to_materials.get(proto_id, [])
-        templates.append({
-            "id": proto_id,
-            "prototype_id": topo.get("prototype_id", ""),
-            "expanded_modes": topo.get("expanded_modes", []),
-            "ideal_space_group": crystal.get("ideal_space_group", ""),
-            "crystal_system": crystal.get("crystal_system", ""),
-            "materials_count": len(mat_ids),
-        })
+        templates.append(
+            {
+                "id": proto_id,
+                "prototype_id": topo.get("prototype_id", ""),
+                "expanded_modes": topo.get("expanded_modes", []),
+                "ideal_space_group": crystal.get("ideal_space_group", ""),
+                "crystal_system": crystal.get("crystal_system", ""),
+                "materials_count": len(mat_ids),
+            }
+        )
     return jsonify({"templates": templates, "total": len(templates)})
 
 
@@ -3407,19 +3613,26 @@ def health_check() -> Response:
     uptime = time.time() - _start_time
     try:
         import psutil
+
         mem = psutil.virtual_memory()
-        mem_info = {"total_mb": round(mem.total / 1048576), "used_mb": round(mem.used / 1048576), "percent": mem.percent}
+        mem_info = {
+            "total_mb": round(mem.total / 1048576),
+            "used_mb": round(mem.used / 1048576),
+            "percent": mem.percent,
+        }
     except ImportError:
         mem_info = None
-    return jsonify({
-        "status": "ok",
-        "uptime_seconds": round(uptime, 1),
-        "indexes_built": _indexes_built,
-        "index_build_time_ms": round(_index_build_time * 1000, 0),
-        "n_prototypes": len(prototypes_index),
-        "n_materials": len(materials_index),
-        "memory": mem_info,
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "uptime_seconds": round(uptime, 1),
+            "indexes_built": _indexes_built,
+            "index_build_time_ms": round(_index_build_time * 1000, 0),
+            "n_prototypes": len(prototypes_index),
+            "n_materials": len(materials_index),
+            "memory": mem_info,
+        }
+    )
 
 
 @app.after_request
@@ -3435,11 +3648,17 @@ def add_cache_headers(response: Response) -> Response:
     response.headers["X-API-Version"] = "1.0.0"
     if request.path.startswith("/api/health"):
         response.headers["Cache-Control"] = "no-cache"
-    elif request.path.startswith("/api/stats") or request.path.startswith("/api/elements") or request.path.startswith("/api/lattice-types"):
+    elif (
+        request.path.startswith("/api/stats")
+        or request.path.startswith("/api/elements")
+        or request.path.startswith("/api/lattice-types")
+    ):
         response.headers["Cache-Control"] = "public, max-age=60"
     elif request.path.startswith("/api/prototypes") and request.method == "GET":
         response.headers["Cache-Control"] = "public, max-age=300"
-    elif request.path.startswith("/api/stacking/predict") or request.path.startswith("/api/stacking/analyze"):
+    elif request.path.startswith("/api/stacking/predict") or request.path.startswith(
+        "/api/stacking/analyze"
+    ):
         response.headers["Cache-Control"] = "no-store"
     return response
 

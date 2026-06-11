@@ -6,11 +6,13 @@ HOST = "118.31.164.41"
 USER = "root"
 KEY = r"D:\Projects\CGCPT-Server\id_ed25519"
 
+
 def connect():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(HOST, username=USER, key_filename=KEY, timeout=30)
     return ssh
+
 
 def run_cmd(ssh, cmd, timeout=30):
     print(f"\n>>> {cmd[:150]}...")
@@ -23,12 +25,16 @@ def run_cmd(ssh, cmd, timeout=30):
         print(f"[STDERR] {err}")
     return out, err
 
+
 def main():
     ssh = connect()
     print("[OK] Connected")
 
     print("\n=== Starting training in background ===")
-    run_cmd(ssh, "nohup /opt/CGCPT/venv/bin/python3 /opt/CGCPT/_run_train.py > /opt/CGCPT/_train_output.log 2>&1 & echo $!")
+    run_cmd(
+        ssh,
+        "nohup /opt/CGCPT/venv/bin/python3 /opt/CGCPT/_run_train.py > /opt/CGCPT/_train_output.log 2>&1 & echo $!",
+    )
 
     print("\n=== Waiting for training to complete (polling) ===")
     for i in range(60):
@@ -48,6 +54,7 @@ def main():
 
     ssh.close()
     print("\n=== All done ===")
+
 
 if __name__ == "__main__":
     main()

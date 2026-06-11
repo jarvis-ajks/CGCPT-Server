@@ -3,7 +3,15 @@ import time
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=120)
@@ -11,6 +19,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 print("=== Fixing frontend deployment ===")
 
@@ -36,7 +45,9 @@ code, r = run("ls -la /opt/CGCPT/root/CGCPT/assets/ | head -10")
 print(f"assets dir:\n{r}")
 
 print("\n=== Update nginx config for SSE support ===")
-code, r = run("""sed -i 's/proxy_read_timeout 120s;/proxy_read_timeout 300s;\\n        proxy_buffering off;/' /etc/nginx/sites-available/ai-website""")
+code, r = run(
+    """sed -i 's/proxy_read_timeout 120s;/proxy_read_timeout 300s;\\n        proxy_buffering off;/' /etc/nginx/sites-available/ai-website"""
+)
 print(f"sed: {r}")
 
 code, r = run("nginx -t 2>&1")

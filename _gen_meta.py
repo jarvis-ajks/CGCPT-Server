@@ -3,7 +3,15 @@ import json
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=120)
@@ -12,8 +20,9 @@ def run(cmd):
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
 
+
 # Generate meta files for existing models using Python on the server
-script = '''
+script = """
 import sys
 sys.path.insert(0, '/opt/CGCPT')
 import joblib
@@ -56,7 +65,7 @@ for pkl in models_dir.glob('*.pkl'):
         print(f'  Created meta for {model_id}: {n_classes} classes, {len(feature_keys)} features')
     except Exception as e:
         print(f'  Error {model_id}: {e}')
-'''
+"""
 
 code, r = run(f"cd /opt/CGCPT && /opt/CGCPT/venv/bin/python3 -c {repr(script)}")
 print(f"Generate meta files:\n{r}")

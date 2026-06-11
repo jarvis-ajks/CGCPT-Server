@@ -16,13 +16,14 @@ except Exception:
 logger = logging.getLogger("cgcpt.task_engine")
 if not logger.handlers:
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
 
 def update_task_progress(db, task_id: str, progress: float, message: str = ""):
     from models import Task
+
     try:
         task = db.query(Task).filter_by(id=task_id).first()
         if task:
@@ -35,6 +36,7 @@ def update_task_progress(db, task_id: str, progress: float, message: str = ""):
 
 def set_task_status(db, task_id: str, status: str, error_msg: str = None, output_data: dict = None):
     from models import Task
+
     try:
         task = db.query(Task).filter_by(id=task_id).first()
         if task:
@@ -51,10 +53,19 @@ def set_task_status(db, task_id: str, status: str, error_msg: str = None, output
         logger.error(f"Failed to set task status [{task_id}]: {e}")
 
 
-def create_model_artifact(db, model_id: str, algorithm_id: str, task_id: str,
-                          model_type: str, metrics: dict, feature_keys: list = None,
-                          name: str = None, file_path: str = None):
+def create_model_artifact(
+    db,
+    model_id: str,
+    algorithm_id: str,
+    task_id: str,
+    model_type: str,
+    metrics: dict,
+    feature_keys: list = None,
+    name: str = None,
+    file_path: str = None,
+):
     from models import ModelArtifact
+
     try:
         existing = db.query(ModelArtifact).filter_by(id=model_id).first()
         if existing:

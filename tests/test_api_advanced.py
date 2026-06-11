@@ -1,4 +1,5 @@
 """Advanced API endpoint tests covering edge cases, security, and error handling."""
+
 import json
 import pytest
 
@@ -272,6 +273,7 @@ class TestAuthEndpoints:
         assert "token" in data
         # Token should be valid base64
         import base64
+
         decoded = base64.b64decode(data["token"]).decode("utf-8")
         assert ":" in decoded
 

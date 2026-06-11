@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def cmd_discover(args):
     from cgcpt_plugin import discover_plugins
+
     plugins = discover_plugins(args.plugin_dir)
     if not plugins:
         print("未发现任何插件")
@@ -56,7 +57,7 @@ def cmd_validate(args):
     found_classes = []
     for attr_name in dir(module):
         attr = getattr(module, attr_name)
-        if isinstance(attr, type) and hasattr(attr, 'algorithm_id') and attr.algorithm_id:
+        if isinstance(attr, type) and hasattr(attr, "algorithm_id") and attr.algorithm_id:
             found_classes.append(attr)
 
     if not found_classes:
@@ -127,6 +128,7 @@ def cmd_register(args):
 
 def cmd_list(args):
     from models import SessionLocal, Algorithm
+
     db = SessionLocal()
     try:
         algos = db.query(Algorithm).all()

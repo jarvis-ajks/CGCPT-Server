@@ -52,6 +52,7 @@ def backup_database(backup_dir: Path = None) -> Optional[Path]:
 
     try:
         from urllib.parse import urlparse
+
         url = urlparse(DATABASE_URL)
         db_name = url.path.lstrip("/")
         user = url.username or "cgcpt"
@@ -61,11 +62,12 @@ def backup_database(backup_dir: Path = None) -> Optional[Path]:
 
         # Use defaults-extra-file to avoid exposing password in process list
         import tempfile
+
         cnf_file = None
         try:
             cnf_fd, cnf_path = tempfile.mkstemp(suffix=".cnf")
             cnf_file = Path(cnf_path)
-            with os.fdopen(cnf_fd, 'w') as f:
+            with os.fdopen(cnf_fd, "w") as f:
                 f.write(f"[client]\nuser={user}\npassword={password}\nhost={host}\nport={port}\n")
 
             cmd = [
@@ -117,34 +119,41 @@ def export_materials(output_file: Path = None) -> Optional[Path]:
         materials = db.query(Material).all()
         data: List[Dict[str, Any]] = []
         for m in materials:
-            data.append({
-                "id": m.id,
-                "formula": m.formula,
-                "space_group": m.space_group,
-                "topology_id": m.topology_id,
-                "elements": m.elements,
-                "lattice_a": m.lattice_a,
-                "lattice_b": m.lattice_b,
-                "lattice_c": m.lattice_c,
-                "lattice_alpha": m.lattice_alpha,
-                "lattice_beta": m.lattice_beta,
-                "lattice_gamma": m.lattice_gamma,
-                "n_atoms": m.n_atoms,
-                "is_verified": m.is_verified,
-                "source": m.source,
-                "cif_path": m.cif_path,
-                "cif_content": m.cif_content,
-                "metadata_json": m.metadata_json,
-                "created_at": m.created_at.isoformat() if m.created_at else None,
-                "updated_at": m.updated_at.isoformat() if m.updated_at else None,
-            })
+            data.append(
+                {
+                    "id": m.id,
+                    "formula": m.formula,
+                    "space_group": m.space_group,
+                    "topology_id": m.topology_id,
+                    "elements": m.elements,
+                    "lattice_a": m.lattice_a,
+                    "lattice_b": m.lattice_b,
+                    "lattice_c": m.lattice_c,
+                    "lattice_alpha": m.lattice_alpha,
+                    "lattice_beta": m.lattice_beta,
+                    "lattice_gamma": m.lattice_gamma,
+                    "n_atoms": m.n_atoms,
+                    "is_verified": m.is_verified,
+                    "source": m.source,
+                    "cif_path": m.cif_path,
+                    "cif_content": m.cif_content,
+                    "metadata_json": m.metadata_json,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                    "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+                }
+            )
 
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump({
-                "exported_at": datetime.now(timezone.utc).isoformat(),
-                "count": len(data),
-                "materials": data,
-            }, f, ensure_ascii=False, indent=2)
+            json.dump(
+                {
+                    "exported_at": datetime.now(timezone.utc).isoformat(),
+                    "count": len(data),
+                    "materials": data,
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
         logger.info("Exported %d materials", len(data))
         return output_file
@@ -177,26 +186,33 @@ def export_prototypes(output_file: Path = None) -> Optional[Path]:
         protos = db.query(Prototype).all()
         data: List[Dict[str, Any]] = []
         for p in protos:
-            data.append({
-                "id": p.id,
-                "prototype_id": p.prototype_id,
-                "expanded_modes": p.expanded_modes,
-                "reference_grid": p.reference_grid,
-                "ideal_space_group": p.ideal_space_group,
-                "space_group_number": p.space_group_number,
-                "crystal_system": p.crystal_system,
-                "is_neutral": p.is_neutral,
-                "topology_data": p.topology_data,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
-                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
-            })
+            data.append(
+                {
+                    "id": p.id,
+                    "prototype_id": p.prototype_id,
+                    "expanded_modes": p.expanded_modes,
+                    "reference_grid": p.reference_grid,
+                    "ideal_space_group": p.ideal_space_group,
+                    "space_group_number": p.space_group_number,
+                    "crystal_system": p.crystal_system,
+                    "is_neutral": p.is_neutral,
+                    "topology_data": p.topology_data,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                    "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+                }
+            )
 
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump({
-                "exported_at": datetime.now(timezone.utc).isoformat(),
-                "count": len(data),
-                "prototypes": data,
-            }, f, ensure_ascii=False, indent=2)
+            json.dump(
+                {
+                    "exported_at": datetime.now(timezone.utc).isoformat(),
+                    "count": len(data),
+                    "prototypes": data,
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
         logger.info("Exported %d prototypes", len(data))
         return output_file
@@ -219,8 +235,9 @@ def main() -> None:
 
     # Export command
     export_parser = subparsers.add_parser("export", help="Export data")
-    export_parser.add_argument("type", choices=["all", "materials", "prototypes"],
-                               help="Type of data to export")
+    export_parser.add_argument(
+        "type", choices=["all", "materials", "prototypes"], help="Type of data to export"
+    )
 
     args = parser.parse_args()
 

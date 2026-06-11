@@ -67,7 +67,9 @@ class TopologyStats(CGCPTPlugin):
                 entry["materials"] = materials[:20]
 
             topology_breakdown[topo_id] = entry
-            ctx.update_progress(0.5 + 0.4 * (len(topology_breakdown) / max(len(prototypes), 1)), f"统计 {topo_id}")
+            ctx.update_progress(
+                0.5 + 0.4 * (len(topology_breakdown) / max(len(prototypes), 1)), f"统计 {topo_id}"
+            )
 
         ctx.update_progress(1.0, "完成")
 

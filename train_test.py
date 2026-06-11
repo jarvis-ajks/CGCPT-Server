@@ -22,7 +22,7 @@ if not samples:
 
 topo_counts = {}
 for s in samples:
-    topo_counts[s['topology']] = topo_counts.get(s['topology'], 0) + 1
+    topo_counts[s["topology"]] = topo_counts.get(s["topology"], 0) + 1
 print(f"  拓扑类型分布:")
 for topo, cnt in sorted(topo_counts.items(), key=lambda x: -x[1]):
     print(f"    {topo}: {cnt}")
@@ -31,17 +31,24 @@ print("\n[2/3] 开始训练 (auto模式, 3轮迭代, 5折CV)...")
 t0 = time.time()
 
 progress_log = []
+
+
 def on_progress(info):
-    phase = info.get('phase', '')
-    if phase == 'init':
-        print(f"  初始化: {info.get('n_samples',0)} 样本, {info.get('n_classes',0)} 类, {info.get('total_steps',0)} 步")
-    elif phase == 'training':
-        idx = info.get('config_idx', 0)
-        total = info.get('total_steps', 0)
+    phase = info.get("phase", "")
+    if phase == "init":
+        print(
+            f"  初始化: {info.get('n_samples',0)} 样本, {info.get('n_classes',0)} 类, {info.get('total_steps',0)} 步"
+        )
+    elif phase == "training":
+        idx = info.get("config_idx", 0)
+        total = info.get("total_steps", 0)
         if idx % 50 == 0 or idx == total:
-            print(f"  进度: {idx}/{total} | 迭代 {info.get('iteration','?')}/{info.get('n_iterations','?')} | 当前: {info.get('current_model','?')} acc={info.get('current_acc',0):.4f} | 最佳: {info.get('best_acc_so_far',0):.4f}")
-    elif phase == 'finalizing':
+            print(
+                f"  进度: {idx}/{total} | 迭代 {info.get('iteration','?')}/{info.get('n_iterations','?')} | 当前: {info.get('current_model','?')} acc={info.get('current_acc',0):.4f} | 最佳: {info.get('best_acc_so_far',0):.4f}"
+            )
+    elif phase == "finalizing":
         print(f"  生成最终模型...")
+
 
 result = stacking_analyzer.train_decision_tree(
     samples,
@@ -49,17 +56,17 @@ result = stacking_analyzer.train_decision_tree(
     model_type="auto",
     n_iterations=3,
     cv_folds=5,
-    progress_callback=on_progress
+    progress_callback=on_progress,
 )
 train_time = time.time() - t0
 
 print(f"\n  训练耗时: {train_time:.1f}s")
 
-if not result.get('success'):
+if not result.get("success"):
     print(f"\n训练失败: {result.get('error', '未知错误')}")
     sys.exit(1)
 
-bp = result['best_params']
+bp = result["best_params"]
 print(f"\n[3/3] 训练结果:")
 print(f"  模型ID: {result['model_id']}")
 print(f"  模型类型: {bp['model_type']} - {bp['model_name']}")
@@ -72,27 +79,29 @@ print(f"  有效样本: {result['n_valid_samples']}")
 print(f"  类别数: {bp.get('n_classes', 'N/A')}")
 print(f"  测试配置数: {result['n_configs_tested']}")
 
-if result.get('model_comparison'):
+if result.get("model_comparison"):
     print(f"\n  模型对比:")
-    for mt, info in sorted(result['model_comparison'].items(), key=lambda x: -x[1]['avg_acc']):
-        print(f"    {mt}: 最佳={info['best_acc']*100:.2f}% 平均={info['avg_acc']*100:.2f}% ({info['count']}次)")
+    for mt, info in sorted(result["model_comparison"].items(), key=lambda x: -x[1]["avg_acc"]):
+        print(
+            f"    {mt}: 最佳={info['best_acc']*100:.2f}% 平均={info['avg_acc']*100:.2f}% ({info['count']}次)"
+        )
 
-if result.get('feature_importances'):
+if result.get("feature_importances"):
     print(f"\n  特征重要性 Top 5:")
-    for name, imp in result['feature_importances'][:5]:
+    for name, imp in result["feature_importances"][:5]:
         print(f"    {name}: {imp*100:.2f}%")
 
-if result.get('confusion_matrix'):
-    cm = result['confusion_matrix']
+if result.get("confusion_matrix"):
+    cm = result["confusion_matrix"]
     print(f"\n  混淆矩阵标签: {cm['labels']}")
-    for i, row in enumerate(cm['matrix']):
+    for i, row in enumerate(cm["matrix"]):
         print(f"    {cm['labels'][i]:>30s}: {row}")
 
 print(f"\n{'='*60}")
 print(f"最终准确率: {bp['test_accuracy']*100:.2f}%")
-if bp['test_accuracy'] >= 0.95:
+if bp["test_accuracy"] >= 0.95:
     print("✅ 准确率达标 (>=95%)")
-elif bp['test_accuracy'] >= 0.90:
+elif bp["test_accuracy"] >= 0.90:
     print("⚠️ 准确率接近目标 (90-95%)，可尝试增加迭代次数")
 else:
     print("❌ 准确率未达标 (<90%)，需要调整参数或增加数据")

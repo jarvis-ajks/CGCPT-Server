@@ -7,8 +7,19 @@ from pathlib import Path
 from typing import Optional, Generator, Any
 
 from sqlalchemy import (
-    create_engine, Column, String, Integer, Float, Text, Boolean,
-    DateTime, JSON, ForeignKey, Index, Enum as SAEnum, text
+    create_engine,
+    Column,
+    String,
+    Integer,
+    Float,
+    Text,
+    Boolean,
+    DateTime,
+    JSON,
+    ForeignKey,
+    Index,
+    Enum as SAEnum,
+    text,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker, Session
 from sqlalchemy.pool import QueuePool
@@ -65,13 +76,15 @@ class Prototype(Base):
     is_neutral: Optional[bool] = Column(Boolean)
     topology_data: Optional[dict] = Column(JSON)
     created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
     materials = relationship("Material", back_populates="prototype")
 
-    __table_args__ = (
-        Index("ix_proto_crystal_system", "crystal_system"),
-    )
+    __table_args__ = (Index("ix_proto_crystal_system", "crystal_system"),)
 
     def __repr__(self) -> str:
         return f"<Prototype(id={self.id!r}, space_group={self.ideal_space_group!r})>"
@@ -104,7 +117,11 @@ class Material(Base):
     cif_content: Optional[str] = Column(Text, nullable=True)
     metadata_json: Optional[dict] = Column(JSON, nullable=True)
     created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
     prototype = relationship("Prototype", back_populates="materials")
 
@@ -138,7 +155,11 @@ class Algorithm(Base):
     default_config: Optional[dict] = Column(JSON, nullable=True)
     is_active: bool = Column(Boolean, default=True)
     created_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
     tasks = relationship("Task", back_populates="algorithm")
 
@@ -159,7 +180,8 @@ class Task(Base):
     algorithm_id: Optional[str] = Column(String(128), ForeignKey("algorithms.id"), index=True)
     status: str = Column(
         SAEnum("pending", "running", "completed", "failed", "cancelled", name="task_status"),
-        default="pending", index=True
+        default="pending",
+        index=True,
     )
     input_data: Optional[dict] = Column(JSON)
     output_data: Optional[dict] = Column(JSON, nullable=True)
@@ -174,9 +196,7 @@ class Task(Base):
 
     algorithm = relationship("Algorithm", back_populates="tasks")
 
-    __table_args__ = (
-        Index("ix_task_status_created", "status", "created_at"),
-    )
+    __table_args__ = (Index("ix_task_status_created", "status", "created_at"),)
 
     def __repr__(self) -> str:
         return f"<Task(id={self.id!r}, status={self.status!r})>"
@@ -225,6 +245,7 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
     parse_cif_file = None
     try:
         from api_server import parse_cif_file as _parse_cif
+
         parse_cif_file = _parse_cif
     except ImportError:
         pass
@@ -235,7 +256,10 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
     existing_mats = db.query(Material).count()
 
     if existing_protos > 0 and existing_mats > 0:
-        return {"skipped": True, "reason": f"DB already has {existing_protos} prototypes, {existing_mats} materials"}
+        return {
+            "skipped": True,
+            "reason": f"DB already has {existing_protos} prototypes, {existing_mats} materials",
+        }
 
     imported_protos = 0
     imported_mats = 0
@@ -243,9 +267,9 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
 
     try:
         # 先禁用外键约束检查（MySQL 特定）
-        if 'mysql' in DATABASE_URL:
+        if "mysql" in DATABASE_URL:
             try:
-                db.execute(text('SET FOREIGN_KEY_CHECKS=0'))
+                db.execute(text("SET FOREIGN_KEY_CHECKS=0"))
                 db.commit()
                 print("✓ 已禁用外键约束检查")
             except Exception as e:
@@ -369,9 +393,9 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
         }
     finally:
         # 重新启用外键约束
-        if 'mysql' in DATABASE_URL:
+        if "mysql" in DATABASE_URL:
             try:
-                db.execute(text('SET FOREIGN_KEY_CHECKS=1'))
+                db.execute(text("SET FOREIGN_KEY_CHECKS=1"))
                 db.commit()
                 print("✓ 已重新启用外键约束")
             except Exception:

@@ -8,7 +8,9 @@ PASS = "ZS1029384756!"
 def connect():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, username=USER, password=PASS, timeout=30, look_for_keys=False, allow_agent=False)
+    ssh.connect(
+        HOST, username=USER, password=PASS, timeout=30, look_for_keys=False, allow_agent=False
+    )
     return ssh
 
 
@@ -35,7 +37,10 @@ def main():
     run_cmd(ssh, "ls -la /opt/CGCPT/web/dist/ 2>/dev/null || echo 'web/dist not found'")
 
     print("\n=== Check gunicorn error ===")
-    run_cmd(ssh, "cd /opt/CGCPT && /opt/CGCPT/venv/bin/gunicorn -c gunicorn.conf.py api_server:app 2>&1 &; sleep 3; kill %1 2>/dev/null")
+    run_cmd(
+        ssh,
+        "cd /opt/CGCPT && /opt/CGCPT/venv/bin/gunicorn -c gunicorn.conf.py api_server:app 2>&1 &; sleep 3; kill %1 2>/dev/null",
+    )
     run_cmd(ssh, "journalctl -u cgcpt -n 50 --no-pager")
 
     print("\n=== Check gunicorn.conf.py ===")

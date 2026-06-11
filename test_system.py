@@ -21,6 +21,7 @@ def test_database():
     print("=== Testing Database ===")
     try:
         from models import SessionLocal, Prototype, Material, init_db
+
         init_db()
         db = SessionLocal()
         try:
@@ -38,6 +39,7 @@ def test_database():
     except Exception as e:
         print(f"  ✗ Database test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -87,6 +89,7 @@ def test_algorithm_registration():
     print("\n=== Testing Algorithm Registration ===")
     try:
         from models import SessionLocal, Algorithm, register_builtin_algorithms
+
         register_builtin_algorithms()
 
         db = SessionLocal()
@@ -101,6 +104,7 @@ def test_algorithm_registration():
     except Exception as e:
         print(f"  ✗ Algorithm test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -134,6 +138,7 @@ def test_decision_tree_inference():
     except Exception as e:
         print(f"  ✗ Decision tree test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

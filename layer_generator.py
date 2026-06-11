@@ -61,8 +61,18 @@ def parse_number_or_fraction(value):
 
 
 class LayeredXOGenerator:
-    def __init__(self, x_element="Ba", o_element="O", m_element="Mg", t_element="Si", b_element="B",
-                 target_xo_distance=2.77648, nx=6, ny=6, enable_t=True):
+    def __init__(
+        self,
+        x_element="Ba",
+        o_element="O",
+        m_element="Mg",
+        t_element="Si",
+        b_element="B",
+        target_xo_distance=2.77648,
+        nx=6,
+        ny=6,
+        enable_t=True,
+    ):
         self.x_element = x_element
         self.o_element = o_element
         self.m_element = m_element
@@ -294,7 +304,11 @@ class LayeredXOGenerator:
     def build_full_shift_sequence_without_T(self, layer_modes, stack_sequence_text):
         n = len(layer_modes)
         x_layers_count = sum(1 for m in layer_modes if self.is_x_layer(m))
-        x_shifts = self.normalize_stack_sequence(stack_sequence_text, x_layers_count) if x_layers_count > 0 else []
+        x_shifts = (
+            self.normalize_stack_sequence(stack_sequence_text, x_layers_count)
+            if x_layers_count > 0
+            else []
+        )
 
         full_shift_sequence = [None] * n
         main_shifts = []
@@ -323,7 +337,9 @@ class LayeredXOGenerator:
 
         return full_shift_sequence, main_shifts
 
-    def insert_T_layers(self, layer_modes, shift_sequence, z_sequence, layer_angles, layer_dxs, layer_dys):
+    def insert_T_layers(
+        self, layer_modes, shift_sequence, z_sequence, layer_angles, layer_dxs, layer_dys
+    ):
         if not self.enable_t:
             return layer_modes, shift_sequence, z_sequence, layer_angles, layer_dxs, layer_dys
 
@@ -358,12 +374,20 @@ class LayeredXOGenerator:
                 left_shift = shift_sequence[i]
                 right_shift = shift_sequence[j]
 
-                t_shift = left_shift if left_shift == right_shift else self.third_shift(left_shift, right_shift)
+                t_shift = (
+                    left_shift
+                    if left_shift == right_shift
+                    else self.third_shift(left_shift, right_shift)
+                )
 
                 z_left = z_sequence[i]
                 z_right = z_sequence[j] if j != 0 else z_sequence[j] + c_frac_full
                 delta = z_right - z_left
-                z_t = (z_left + 0.25 * delta) if insertion_after[i] == "left" else (z_left + 0.75 * delta)
+                z_t = (
+                    (z_left + 0.25 * delta)
+                    if insertion_after[i] == "left"
+                    else (z_left + 0.75 * delta)
+                )
 
                 new_modes.append("T")
                 new_shifts.append(t_shift)
@@ -396,7 +420,9 @@ class LayeredXOGenerator:
                 prev_idx = (i - 1) % n
                 next_idx = (i + 1) % n
 
-                if not self.is_main_layer(layer_modes[prev_idx]) or not self.is_main_layer(layer_modes[next_idx]):
+                if not self.is_main_layer(layer_modes[prev_idx]) or not self.is_main_layer(
+                    layer_modes[next_idx]
+                ):
                     raise ValueError(f"M6/M7 间隙层异常 (索引 {i})：间隙层必须位于两个主层之间。")
 
                 z_prev = main_z_cart[prev_idx]
@@ -426,7 +452,9 @@ class LayeredXOGenerator:
         elif mode == "XO3":
             x_sites, _ = self.get_layer_sites_XO3(zero_shift)
         elif mode in ["X", "XBO3", "XB3O6"]:
-            x_sites, _, _ = self.get_layer_sites_X_family(mode, zero_shift, flip_b_site=False, base_len=base_len)
+            x_sites, _, _ = self.get_layer_sites_X_family(
+                mode, zero_shift, flip_b_site=False, base_len=base_len
+            )
         elif mode == "BO3":
             x_sites = []
         else:
@@ -445,14 +473,18 @@ class LayeredXOGenerator:
 
         prev_mode = layer_modes[prev_idx]
         prev_theta = layer_angles[prev_idx] if layer_angles is not None else 0.0
-        ref_x_sites = self.get_reference_x_sites_for_main_layer(prev_mode, theta=prev_theta, base_len=base_len)
+        ref_x_sites = self.get_reference_x_sites_for_main_layer(
+            prev_mode, theta=prev_theta, base_len=base_len
+        )
 
         if len(ref_x_sites) > 0:
             return ref_x_sites
 
         next_mode = layer_modes[next_idx]
         next_theta = layer_angles[next_idx] if layer_angles is not None else 0.0
-        ref_x_sites = self.get_reference_x_sites_for_main_layer(next_mode, theta=next_theta, base_len=base_len)
+        ref_x_sites = self.get_reference_x_sites_for_main_layer(
+            next_mode, theta=next_theta, base_len=base_len
+        )
 
         if len(ref_x_sites) > 0:
             return ref_x_sites
@@ -473,8 +505,12 @@ class LayeredXOGenerator:
                     else:
                         o_sites_A.append((base[0], base[1]))
         if is_special_xo:
-            return self.apply_translation(x_sites_special, shift_vec), self.apply_translation(o_sites_special, shift_vec)
-        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(o_sites_A, shift_vec)
+            return self.apply_translation(x_sites_special, shift_vec), self.apply_translation(
+                o_sites_special, shift_vec
+            )
+        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(
+            o_sites_A, shift_vec
+        )
 
     def get_layer_sites_XO2(self, shift_vec):
         x_sites_A, o_sites_A = [], []
@@ -485,14 +521,16 @@ class LayeredXOGenerator:
                 o1 = base + np.array([1 / (3 * self.nx), 1 / (3 * self.ny)])
                 o2 = base + np.array([2 / (3 * self.nx), 2 / (3 * self.ny)])
                 o_sites_A.extend([(o1[0], o1[1]), (o2[0], o2[1])])
-        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(o_sites_A, shift_vec)
+        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(
+            o_sites_A, shift_vec
+        )
 
     def get_layer_sites_XO3(self, shift_vec):
         x_sites_A, o_sites_A = [], []
         directions = {
             "d1": np.array([1 / self.nx, 0.0]),
             "d2": np.array([0.0, 1 / self.ny]),
-            "d3": np.array([1 / self.nx, -1 / self.ny])
+            "d3": np.array([1 / self.nx, -1 / self.ny]),
         }
         for i in range(self.nx):
             for j in range(self.ny):
@@ -500,7 +538,9 @@ class LayeredXOGenerator:
                 x_sites_A.append((base[0], base[1]))
                 for d in directions.values():
                     o_sites_A.append((base[0] + 0.5 * d[0], base[1] + 0.5 * d[1]))
-        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(o_sites_A, shift_vec)
+        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(
+            o_sites_A, shift_vec
+        )
 
     def get_layer_sites_X_family(self, mode, shift_vec, flip_b_site=False, base_len=None):
         x_sites_A, b_sites_A, o_sites_A = [], [], []
@@ -515,7 +555,7 @@ class LayeredXOGenerator:
         directions = {
             "d1": np.array([1 / self.nx, 0.0]),
             "d2": np.array([0.0, 1 / self.ny]),
-            "d3": np.array([1 / self.nx, -1 / self.ny])
+            "d3": np.array([1 / self.nx, -1 / self.ny]),
         }
 
         if mode in ["X", "XBO3", "BO3"]:
@@ -554,7 +594,7 @@ class LayeredXOGenerator:
                             ((i + 2) % grid_nx, j % grid_ny),
                             (i % grid_nx, (j + 1) % grid_ny),
                             ((i + 1) % grid_nx, (j + 1) % grid_ny),
-                            (i % grid_nx, (j + 2) % grid_ny)
+                            (i % grid_nx, (j + 2) % grid_ny),
                         ]
                         if all(grid_atoms.get(pt) == "O" for pt in pts):
                             b1 = ((i + 1 / 3) / grid_nx, (j + 1 / 3) / grid_ny)
@@ -568,7 +608,7 @@ class LayeredXOGenerator:
                             ((i - 2) % grid_nx, j % grid_ny),
                             (i % grid_nx, (j - 1) % grid_ny),
                             ((i - 1) % grid_nx, (j - 1) % grid_ny),
-                            (i % grid_nx, (j - 2) % grid_ny)
+                            (i % grid_nx, (j - 2) % grid_ny),
                         ]
                         if all(grid_atoms.get(pt) == "O" for pt in pts):
                             b1 = ((i - 1 / 3) / grid_nx, (j - 1 / 3) / grid_ny)
@@ -579,7 +619,7 @@ class LayeredXOGenerator:
         return (
             self.apply_translation(x_sites_A, shift_vec),
             self.apply_translation(b_sites_A, shift_vec),
-            self.apply_translation(o_sites_A, shift_vec)
+            self.apply_translation(o_sites_A, shift_vec),
         )
 
     def get_layer_sites_T(self, shift_vec):
@@ -595,15 +635,24 @@ class LayeredXOGenerator:
             raise ValueError("M7层无法生成：相邻主层中未找到可用的 X 原子网格参考。")
         return self.apply_translation(list(ref_x_sites), shift_vec)
 
-    def get_layer_sites_M6(self, center_shift_label, lattice, layer_modes=None, layer_angles=None,
-                           current_idx=None, base_len=None):
-        shift_vec = self.get_shift_map_for_mode("M6", layer_modes=layer_modes, current_idx=current_idx)[center_shift_label]
+    def get_layer_sites_M6(
+        self,
+        center_shift_label,
+        lattice,
+        layer_modes=None,
+        layer_angles=None,
+        current_idx=None,
+        base_len=None,
+    ):
+        shift_vec = self.get_shift_map_for_mode(
+            "M6", layer_modes=layer_modes, current_idx=current_idx
+        )[center_shift_label]
 
         ref_x_sites = self.find_adjacent_x_sites_for_M7(
             current_idx=current_idx,
             layer_modes=layer_modes,
             layer_angles=layer_angles,
-            base_len=base_len
+            base_len=base_len,
         )
 
         all_m7_sites = self.get_layer_sites_M7_from_adjacent_X(ref_x_sites, np.array([0.0, 0.0]))
@@ -621,8 +670,19 @@ class LayeredXOGenerator:
 
         return self.apply_translation(kept_sites, shift_vec)
 
-    def get_reference_grid_sites_for_layer(self, mode, x_sites, b_sites, o_sites, m_sites, t_sites,
-                                           layer_modes=None, layer_angles=None, current_idx=None, base_len=None):
+    def get_reference_grid_sites_for_layer(
+        self,
+        mode,
+        x_sites,
+        b_sites,
+        o_sites,
+        m_sites,
+        t_sites,
+        layer_modes=None,
+        layer_angles=None,
+        current_idx=None,
+        base_len=None,
+    ):
         mode_u = mode.upper().strip()
 
         if mode_u == "M6":
@@ -630,7 +690,7 @@ class LayeredXOGenerator:
                 current_idx=current_idx,
                 layer_modes=layer_modes,
                 layer_angles=layer_angles,
-                base_len=base_len
+                base_len=base_len,
             )
             return self.get_layer_sites_M7_from_adjacent_X(ref_x_sites, np.array([0.0, 0.0]))
 
@@ -661,22 +721,46 @@ class LayeredXOGenerator:
         gx, gy = self.infer_grid_from_sites(sites)
         return np.array([dx_steps / gx, dy_steps / gy], dtype=float)
 
-    def build_total_shift_vec_from_sites(self, sites, shift_label, dx_steps=0.0, dy_steps=0.0,
-                                         mode=None, layer_modes=None, current_idx=None):
+    def build_total_shift_vec_from_sites(
+        self,
+        sites,
+        shift_label,
+        dx_steps=0.0,
+        dy_steps=0.0,
+        mode=None,
+        layer_modes=None,
+        current_idx=None,
+    ):
         if mode is None:
             shift_base = self.get_shift_map()[shift_label]
         else:
-            shift_base = self.get_shift_map_for_mode(mode, layer_modes=layer_modes, current_idx=current_idx)[shift_label]
+            shift_base = self.get_shift_map_for_mode(
+                mode, layer_modes=layer_modes, current_idx=current_idx
+            )[shift_label]
         return shift_base + self.build_user_translation_vec_from_sites(sites, dx_steps, dy_steps)
 
-    def get_layer_sites(self, mode, shift_label, lattice=None,
-                        is_special_xo=False, t_shift_vec=None, flip_b_site=False,
-                        base_len=None, layer_modes=None, layer_angles=None, current_idx=None):
+    def get_layer_sites(
+        self,
+        mode,
+        shift_label,
+        lattice=None,
+        is_special_xo=False,
+        t_shift_vec=None,
+        flip_b_site=False,
+        base_len=None,
+        layer_modes=None,
+        layer_angles=None,
+        current_idx=None,
+    ):
         mode = mode.upper().strip()
-        shift_vec = self.get_shift_map_for_mode(mode, layer_modes=layer_modes, current_idx=current_idx)[shift_label]
+        shift_vec = self.get_shift_map_for_mode(
+            mode, layer_modes=layer_modes, current_idx=current_idx
+        )[shift_label]
 
         if mode in ["X", "XBO3", "BO3", "XB3O6"]:
-            return self.get_layer_sites_X_family(mode, shift_vec, flip_b_site=flip_b_site, base_len=base_len)
+            return self.get_layer_sites_X_family(
+                mode, shift_vec, flip_b_site=flip_b_site, base_len=base_len
+            )
 
         elif self.is_m_layer(mode):
             if mode == "M7":
@@ -684,7 +768,7 @@ class LayeredXOGenerator:
                     current_idx=current_idx,
                     layer_modes=layer_modes,
                     layer_angles=layer_angles,
-                    base_len=base_len
+                    base_len=base_len,
                 )
                 return self.get_layer_sites_M7_from_adjacent_X(ref_x_sites, shift_vec)
             else:
@@ -694,7 +778,7 @@ class LayeredXOGenerator:
                     layer_modes=layer_modes,
                     layer_angles=layer_angles,
                     current_idx=current_idx,
-                    base_len=base_len
+                    base_len=base_len,
                 )
 
         elif mode == "T":

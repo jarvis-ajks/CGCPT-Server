@@ -8,13 +8,17 @@ ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(HOST, username=USER, key_filename=KEY, timeout=30)
 
+
 def run(cmd):
     print(f"\n>>> {cmd}")
     stdin, stdout, stderr = ssh.exec_command(cmd, timeout=15)
     out = stdout.read().decode("utf-8", errors="replace")
     err = stderr.read().decode("utf-8", errors="replace")
-    if out: print(out)
-    if err: print(f"[STDERR] {err}")
+    if out:
+        print(out)
+    if err:
+        print(f"[STDERR] {err}")
+
 
 run("rm -f /etc/nginx/sites-enabled/default")
 run("nginx -t")

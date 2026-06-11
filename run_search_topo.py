@@ -9,20 +9,18 @@ import verify_topology
 CONFIG = {
     # 1. 您的 Materials Project 秘钥
     "api_key": "WI5JaLAqWrkp0TmxVPP5qQXVCfDVKOvd",  # 请填入您的真实 Key
-
     # 2. 本次研究的拓扑配比与阳离子限制
     "target_formula": "ABO3",
     "required_elements": {"Na", "K", "Rb", "Cs", "Mg", "Ca", "Sr", "Ba", "Sc", "Y"},
-
     # 3. 本次使用的最高对称性标准尺 (Cif 文件路径)
     "template_cif": "database/primitive_BaTiO3.cif",
-
     # 4. 本次课题/原型的统一命名 (将自动用于创建文件夹)
-    "project_name": "Proto_XO3-M7-XO3-M7-XO3-XO3"
+    "project_name": "Proto_XO3-M7-XO3-M7-XO3-XO3",
 }
 
 
 # =====================================================================
+
 
 def main():
     # 自动推导文件夹路径，绝不混淆
@@ -37,14 +35,12 @@ def main():
         api_key=CONFIG["api_key"],
         target_formula=CONFIG["target_formula"],
         required_elements=CONFIG["required_elements"],
-        output_dir=raw_dir
+        output_dir=raw_dir,
     )
 
     # 阶段 2：自动调用质检模块
     verify_topology.run_verification(
-        template_cif=CONFIG["template_cif"],
-        raw_dir=raw_dir,
-        verified_dir=verified_dir
+        template_cif=CONFIG["template_cif"], raw_dir=raw_dir, verified_dir=verified_dir
     )
 
 

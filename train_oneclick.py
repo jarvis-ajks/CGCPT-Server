@@ -20,23 +20,25 @@ import stacking_analyzer
 
 def main():
     parser = argparse.ArgumentParser(description="CGCPT 堆垛特征识别 - 一键训练")
-    parser.add_argument("--data", type=str, default=None,
-                        help="CIF数据目录路径(每个子文件夹=一个类别，文件夹内放CIF文件)")
-    parser.add_argument("--test-ratio", type=float, default=0.2,
-                        help="测试集比例(默认0.2=20%%)")
-    parser.add_argument("--iterations", type=int, default=3,
-                        help="迭代轮数/随机种子数(默认3)")
-    parser.add_argument("--cv-folds", type=int, default=5,
-                        help="交叉验证折数(默认5)")
-    parser.add_argument("--model-type", type=str, default="auto",
-                        choices=["auto", "dt", "rf", "knn", "gb"],
-                        help="模型类型: auto=全部对比, dt=决策树, rf=随机森林, knn=KNN, gb=梯度提升")
-    parser.add_argument("--max-depth", type=int, default=None,
-                        help="决策树最大深度(默认自动搜索)")
-    parser.add_argument("--quick", action="store_true",
-                        help="快速模式: 1轮迭代, 3折CV")
-    parser.add_argument("--output", type=str, default=None,
-                        help="结果输出JSON文件路径(默认不保存)")
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=None,
+        help="CIF数据目录路径(每个子文件夹=一个类别，文件夹内放CIF文件)",
+    )
+    parser.add_argument("--test-ratio", type=float, default=0.2, help="测试集比例(默认0.2=20%%)")
+    parser.add_argument("--iterations", type=int, default=3, help="迭代轮数/随机种子数(默认3)")
+    parser.add_argument("--cv-folds", type=int, default=5, help="交叉验证折数(默认5)")
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="auto",
+        choices=["auto", "dt", "rf", "knn", "gb"],
+        help="模型类型: auto=全部对比, dt=决策树, rf=随机森林, knn=KNN, gb=梯度提升",
+    )
+    parser.add_argument("--max-depth", type=int, default=None, help="决策树最大深度(默认自动搜索)")
+    parser.add_argument("--quick", action="store_true", help="快速模式: 1轮迭代, 3折CV")
+    parser.add_argument("--output", type=str, default=None, help="结果输出JSON文件路径(默认不保存)")
     args = parser.parse_args()
 
     if args.quick:
@@ -77,7 +79,7 @@ def main():
 
     topo_counts = {}
     for s in samples:
-        topo_counts[s['topology']] = topo_counts.get(s['topology'], 0) + 1
+        topo_counts[s["topology"]] = topo_counts.get(s["topology"], 0) + 1
 
     print(f"  找到 {len(samples)} 个样本 (耗时 {scan_time:.1f}s)")
     print(f"  类别分布 ({len(topo_counts)} 个类别):")
@@ -101,24 +103,30 @@ def main():
     t0 = time.time()
 
     def on_progress(info):
-        phase = info.get('phase', '')
-        if phase == 'init':
-            print(f"  初始化: {info.get('n_samples',0)} 样本, "
-                  f"{info.get('n_classes',0)} 类, "
-                  f"{info.get('total_steps',0)} 步待测")
-        elif phase == 'training':
-            idx = info.get('config_idx', 0)
-            total = info.get('total_steps', 0)
+        phase = info.get("phase", "")
+        if phase == "init":
+            print(
+                f"  初始化: {info.get('n_samples',0)} 样本, "
+                f"{info.get('n_classes',0)} 类, "
+                f"{info.get('total_steps',0)} 步待测"
+            )
+        elif phase == "training":
+            idx = info.get("config_idx", 0)
+            total = info.get("total_steps", 0)
             pct = idx / total * 100 if total > 0 else 0
             bar_len = 30
             filled = int(bar_len * idx / total) if total > 0 else 0
             bar = "█" * filled + "░" * (bar_len - filled)
-            print(f"\r  [{bar}] {pct:5.1f}% | "
-                  f"迭代{info.get('iteration','?')}/{info.get('n_iterations','?')} | "
-                  f"{info.get('current_model','?')[:30]} | "
-                  f"acc={info.get('current_acc',0):.4f} | "
-                  f"最佳={info.get('best_acc_so_far',0):.4f}", end='', flush=True)
-        elif phase == 'finalizing':
+            print(
+                f"\r  [{bar}] {pct:5.1f}% | "
+                f"迭代{info.get('iteration','?')}/{info.get('n_iterations','?')} | "
+                f"{info.get('current_model','?')[:30]} | "
+                f"acc={info.get('current_acc',0):.4f} | "
+                f"最佳={info.get('best_acc_so_far',0):.4f}",
+                end="",
+                flush=True,
+            )
+        elif phase == "finalizing":
             print(f"\n  生成最终模型...")
 
     result = stacking_analyzer.train_decision_tree(
@@ -133,11 +141,11 @@ def main():
     )
     train_time = time.time() - t0
 
-    if not result.get('success'):
+    if not result.get("success"):
         print(f"\n❌ 训练失败: {result.get('error', '未知错误')}")
         sys.exit(1)
 
-    bp = result['best_params']
+    bp = result["best_params"]
     print(f"\n\n[3/3] 训练结果 (耗时 {train_time:.1f}s)")
     print("=" * 70)
     print(f"  模型ID:     {result['model_id']}")
@@ -153,35 +161,37 @@ def main():
     print(f"  有效样本:     {result['n_valid_samples']}")
     print(f"  测试配置数:   {result['n_configs_tested']}")
 
-    if result.get('model_comparison'):
+    if result.get("model_comparison"):
         print(f"\n  模型对比:")
         print(f"  {'模型':>6s} | {'最佳准确率':>10s} | {'平均准确率':>10s} | {'测试次数':>8s}")
         print(f"  {'─'*6}─┼─{'─'*10}─┼─{'─'*10}─┼─{'─'*8}")
-        for mt, info in sorted(result['model_comparison'].items(), key=lambda x: -x[1]['avg_acc']):
-            print(f"  {mt:>6s} | {info['best_acc']*100:>9.2f}% | {info['avg_acc']*100:>9.2f}% | {info['count']:>8d}")
+        for mt, info in sorted(result["model_comparison"].items(), key=lambda x: -x[1]["avg_acc"]):
+            print(
+                f"  {mt:>6s} | {info['best_acc']*100:>9.2f}% | {info['avg_acc']*100:>9.2f}% | {info['count']:>8d}"
+            )
 
-    if result.get('feature_importances'):
+    if result.get("feature_importances"):
         print(f"\n  特征重要性 Top 10:")
-        for i, (name, imp) in enumerate(result['feature_importances'][:10]):
+        for i, (name, imp) in enumerate(result["feature_importances"][:10]):
             bar_len = int(imp * 50)
             bar = "█" * bar_len
             print(f"    {i+1:>2d}. {name:<25s} {imp*100:>6.2f}% {bar}")
 
-    if result.get('confusion_matrix'):
-        cm = result['confusion_matrix']
-        labels = cm['labels']
+    if result.get("confusion_matrix"):
+        cm = result["confusion_matrix"]
+        labels = cm["labels"]
         print(f"\n  混淆矩阵:")
         hdr_label = "真实\\预测"
         header = f"  {hdr_label:>30s} | " + " | ".join(f"{l[:12]:>12s}" for l in labels)
         print(header)
         sep = "─" * 30
         print(f"  {sep}─┼─{'─'*14}┼" * 1)
-        for i, row in enumerate(cm['matrix']):
+        for i, row in enumerate(cm["matrix"]):
             row_str = " | ".join(f"{v:>12d}" for v in row)
             print(f"  {labels[i][:30]:>30s} | {row_str}")
 
     print(f"\n{'='*70}")
-    acc = bp['test_accuracy']
+    acc = bp["test_accuracy"]
     if acc >= 0.95:
         print(f"  ✅ 准确率 {acc*100:.2f}% - 达标 (>=95%)")
     elif acc >= 0.90:
@@ -198,7 +208,7 @@ def main():
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2, default=str)
         print(f"\n  结果已保存到: {output_path}")
 

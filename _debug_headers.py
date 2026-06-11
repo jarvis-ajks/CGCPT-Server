@@ -2,7 +2,15 @@ import paramiko
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
@@ -10,6 +18,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 # Find all server blocks with their server_name
 code, r = run("nginx -T 2>/dev/null | grep -n 'server {' | head -10")
@@ -30,7 +39,9 @@ print(f"\nDefault site:\n{r[:500]}")
 # The real issue: add_header not showing up means the request IS going to the right location
 # but nginx might be serving from a different root or the add_header is being ignored
 # Let me check if the file is actually being served from the right location
-code, r = run("curl -sI http://localhost/CGCPT/assets/vendor-react-076Dd0Bx.js | grep -i 'content-length\\|etag\\|last-modified'")
+code, r = run(
+    "curl -sI http://localhost/CGCPT/assets/vendor-react-076Dd0Bx.js | grep -i 'content-length\\|etag\\|last-modified'"
+)
 print(f"\nFile info: {r}")
 
 # Check if the file exists at the right path

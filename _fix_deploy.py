@@ -11,7 +11,9 @@ LOCAL_DIR = r"d:\Projects\CGCPT-Server"
 def connect():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, username=USER, password=PASS, timeout=30, look_for_keys=False, allow_agent=False)
+    ssh.connect(
+        HOST, username=USER, password=PASS, timeout=30, look_for_keys=False, allow_agent=False
+    )
     return ssh
 
 
@@ -73,7 +75,10 @@ def main():
     sftp.close()
 
     print("\n[3] Verifying api_server import...")
-    run_cmd(ssh, "cd /opt/CGCPT && /opt/CGCPT/venv/bin/python3 -c 'import api_server; print(\"Import OK\")'")
+    run_cmd(
+        ssh,
+        "cd /opt/CGCPT && /opt/CGCPT/venv/bin/python3 -c 'import api_server; print(\"Import OK\")'",
+    )
 
     print("\n[4] Restarting service...")
     run_cmd(ssh, "systemctl restart cgcpt", timeout=30)

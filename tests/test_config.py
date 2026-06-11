@@ -12,6 +12,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("SECRET_KEY", raising=False)
             import config
+
             importlib.reload(config)
             assert config.SECRET_KEY == "change-me-in-production"
 
@@ -19,6 +20,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("ADMIN_USER", raising=False)
             import config
+
             importlib.reload(config)
             assert config.ADMIN_USER == "admin"
 
@@ -26,6 +28,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("ADMIN_PASS", raising=False)
             import config
+
             importlib.reload(config)
             assert config.ADMIN_PASS == "123"
 
@@ -33,6 +36,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("HOST", raising=False)
             import config
+
             importlib.reload(config)
             assert config.HOST == "0.0.0.0"
 
@@ -40,6 +44,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("PORT", raising=False)
             import config
+
             importlib.reload(config)
             assert config.PORT == 5000
 
@@ -47,6 +52,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("DEBUG", raising=False)
             import config
+
             importlib.reload(config)
             assert isinstance(config.DEBUG, bool)
 
@@ -54,6 +60,7 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("CGCPT_DB_URL", raising=False)
             import config
+
             importlib.reload(config)
             assert "mysql" in config.DATABASE_URL
 
@@ -61,13 +68,16 @@ class TestDefaultConfig:
         with pytest.MonkeyPatch.context() as mp:
             mp.delenv("LOG_LEVEL", raising=False)
             import config
+
             importlib.reload(config)
             assert config.LOG_LEVEL == "INFO"
 
     def test_database_dir_is_path(self):
         import config
+
         importlib.reload(config)
         from pathlib import Path
+
         assert isinstance(config.DATABASE_DIR, Path)
 
 
@@ -76,6 +86,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("SECRET_KEY", "my-test-secret")
             import config
+
             importlib.reload(config)
             assert config.SECRET_KEY == "my-test-secret"
 
@@ -83,6 +94,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("ADMIN_USER", "superadmin")
             import config
+
             importlib.reload(config)
             assert config.ADMIN_USER == "superadmin"
 
@@ -90,6 +102,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("ADMIN_PASS", "strongpass")
             import config
+
             importlib.reload(config)
             assert config.ADMIN_PASS == "strongpass"
 
@@ -97,6 +110,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("HOST", "127.0.0.1")
             import config
+
             importlib.reload(config)
             assert config.HOST == "127.0.0.1"
 
@@ -104,6 +118,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("PORT", "8080")
             import config
+
             importlib.reload(config)
             assert config.PORT == 8080
 
@@ -111,6 +126,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("DEBUG", "false")
             import config
+
             importlib.reload(config)
             assert config.DEBUG is False
 
@@ -118,6 +134,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("CGCPT_DB_URL", "sqlite:///test.db")
             import config
+
             importlib.reload(config)
             assert config.DATABASE_URL == "sqlite:///test.db"
 
@@ -125,6 +142,7 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("LOG_LEVEL", "DEBUG")
             import config
+
             importlib.reload(config)
             assert config.LOG_LEVEL == "DEBUG"
 
@@ -132,5 +150,6 @@ class TestEnvOverride:
         with pytest.MonkeyPatch.context() as mp:
             mp.setenv("CORS_ORIGINS", "http://localhost:3000,http://example.com")
             import config
+
             importlib.reload(config)
             assert "localhost:3000" in config.CORS_ORIGINS

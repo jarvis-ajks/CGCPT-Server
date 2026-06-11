@@ -28,7 +28,9 @@ DIR_UPLOADS = [
 def connect():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, username=USER, password=PASS, timeout=30, look_for_keys=False, allow_agent=False)
+    ssh.connect(
+        HOST, username=USER, password=PASS, timeout=30, look_for_keys=False, allow_agent=False
+    )
     return ssh
 
 
@@ -94,7 +96,7 @@ def main():
     run_cmd(ssh, "pip3 install scikit-learn", timeout=120)
 
     print("\n[5/6] Verifying training functionality...")
-    train_cmd = 'cd /opt/CGCPT && python3 -c "from stacking_analyzer import train_decision_tree; r = train_decision_tree(max_sequences=200, cv_folds=3); print(\'Accuracy:\', r.get(\'best_params\', {}).get(\'test_accuracy\', \'N/A\'))"'
+    train_cmd = "cd /opt/CGCPT && python3 -c \"from stacking_analyzer import train_decision_tree; r = train_decision_tree(max_sequences=200, cv_folds=3); print('Accuracy:', r.get('best_params', {}).get('test_accuracy', 'N/A'))\""
     run_cmd(ssh, train_cmd, timeout=600)
 
     print("\n[6/6] Restarting service...")

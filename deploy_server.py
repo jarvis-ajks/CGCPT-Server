@@ -13,10 +13,9 @@ from pathlib import Path
 def run(cmd: str, cwd: str = "/opt/CGCPT") -> tuple[int, str, str]:
     """运行系统命令"""
     print(f"$ {cmd}")
-    proc = subprocess.Popen(cmd, shell=True, cwd=cwd,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE,
-                           text=True)
+    proc = subprocess.Popen(
+        cmd, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     stdout, stderr = proc.communicate()
     if stdout:
         print(stdout.strip())
@@ -35,7 +34,13 @@ def main():
 
     # 1. 检查文件完整性
     print("\n[1] 检查项目文件完整性...")
-    files = ["api_server.py", "models.py", "task_worker.py", "stacking_analyzer.py", "requirements.txt"]
+    files = [
+        "api_server.py",
+        "models.py",
+        "task_worker.py",
+        "stacking_analyzer.py",
+        "requirements.txt",
+    ]
     missing = [f for f in files if not os.path.exists(f)]
     if missing:
         print(f"✗ 缺少文件: {missing}")
@@ -56,7 +61,7 @@ def main():
     print("  开始数据库迁移...")
     print("=" * 70)
 
-    migrate_code = '''
+    migrate_code = """
 import sys
 sys.path.insert(0, "/opt/CGCPT")
 
@@ -101,7 +106,7 @@ try:
     print("=" * 70)
 finally:
     db.close()
-'''
+"""
 
     run(f'/opt/CGCPT/venv/bin/python3 -c "{migrate_code}"')
 
@@ -127,16 +132,22 @@ finally:
 
     time.sleep(2)
     print("\n直接访问 API (5001 端口)...")
-    run("curl -s http://127.0.0.1:5000/api/health | python3 -m json.tool 2>/dev/null || "
-        "curl -s http://127.0.0.1:5001/api/health | python3 -m json.tool")
+    run(
+        "curl -s http://127.0.0.1:5000/api/health | python3 -m json.tool 2>/dev/null || "
+        "curl -s http://127.0.0.1:5001/api/health | python3 -m json.tool"
+    )
 
     print("\n访问数据库状态 API...")
-    run("curl -s http://127.0.0.1:5000/api/db/status | python3 -m json.tool 2>/dev/null || "
-        "curl -s http://127.0.0.1:5001/api/db/status | python3 -m json.tool")
+    run(
+        "curl -s http://127.0.0.1:5000/api/db/status | python3 -m json.tool 2>/dev/null || "
+        "curl -s http://127.0.0.1:5001/api/db/status | python3 -m json.tool"
+    )
 
     print("\n访问算法列表...")
-    run("curl -s http://127.0.0.1:5000/api/algorithms | python3 -m json.tool 2>/dev/null || "
-        "curl -s http://127.0.0.1:5001/api/algorithms | python3 -m json.tool")
+    run(
+        "curl -s http://127.0.0.1:5000/api/algorithms | python3 -m json.tool 2>/dev/null || "
+        "curl -s http://127.0.0.1:5001/api/algorithms | python3 -m json.tool"
+    )
 
     print("\n" + "=" * 70)
     print("  全部完成！🎉")

@@ -9,7 +9,11 @@ from typing import Any, Optional, Union
 
 import numpy as np
 
-from config import DATABASE_DIR as CFG_DATABASE_DIR, UPLOAD_DIR as CFG_UPLOAD_DIR, MODEL_DIR as CFG_MODEL_DIR
+from config import (
+    DATABASE_DIR as CFG_DATABASE_DIR,
+    UPLOAD_DIR as CFG_UPLOAD_DIR,
+    MODEL_DIR as CFG_MODEL_DIR,
+)
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +25,9 @@ _pymatgen = None
 _sklearn_modules = None
 _model_cache: dict[str, Any] = {}
 
-DATABASE_DIR = CFG_DATABASE_DIR if CFG_DATABASE_DIR else Path(__file__).resolve().parent / "database"
+DATABASE_DIR = (
+    CFG_DATABASE_DIR if CFG_DATABASE_DIR else Path(__file__).resolve().parent / "database"
+)
 UPLOAD_DIR = CFG_UPLOAD_DIR if CFG_UPLOAD_DIR else Path(__file__).resolve().parent / "uploads"
 MODEL_DIR = CFG_MODEL_DIR if CFG_MODEL_DIR else Path(__file__).resolve().parent / "models"
 
@@ -48,7 +54,13 @@ def _ensure_pymatgen() -> dict[str, Any]:
     try:
         from pymatgen.core import Structure, Lattice, Element
         from pymatgen.io.cif import CifParser
-        _pymatgen = {"Structure": Structure, "Lattice": Lattice, "CifParser": CifParser, "Element": Element}
+
+        _pymatgen = {
+            "Structure": Structure,
+            "Lattice": Lattice,
+            "CifParser": CifParser,
+            "Element": Element,
+        }
         HAS_PYMATGEN = True
     except ImportError:
         HAS_PYMATGEN = False
@@ -74,6 +86,7 @@ def _ensure_sklearn() -> dict[str, Any]:
         from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
         from sklearn.preprocessing import StandardScaler
         import joblib
+
         _sklearn_modules = {
             "DecisionTreeClassifier": DecisionTreeClassifier,
             "RandomForestClassifier": RandomForestClassifier,
@@ -318,6 +331,7 @@ def parse_cif_text(cif_text: str) -> Optional[dict[str, Any]]:
         return None
     try:
         from io import StringIO
+
         parser = pmg["CifParser"](StringIO(cif_text))
         structures = parser.parse_structures(primitive=False)
         if not structures:
@@ -326,12 +340,14 @@ def parse_cif_text(cif_text: str) -> Optional[dict[str, Any]]:
         lattice = struct.lattice
         atom_sites = []
         for site in struct:
-            atom_sites.append({
-                "element": site.specie.symbol,
-                "x": round(float(site.frac_coords[0]), 8),
-                "y": round(float(site.frac_coords[1]), 8),
-                "z": round(float(site.frac_coords[2]), 8),
-            })
+            atom_sites.append(
+                {
+                    "element": site.specie.symbol,
+                    "x": round(float(site.frac_coords[0]), 8),
+                    "y": round(float(site.frac_coords[1]), 8),
+                    "z": round(float(site.frac_coords[2]), 8),
+                }
+            )
         return {
             "lattice": {
                 "a": round(float(lattice.a), 6),
@@ -535,7 +551,9 @@ def extract_features(cif_data: Optional[dict[str, Any]]) -> Optional[dict[str, A
             curr_has_o = "O" in layer_compositions[i]
             if prev_has_o != curr_has_o:
                 switches += 1
-        alternating_score = switches / (len(layer_compositions) - 1) if len(layer_compositions) > 1 else 0
+        alternating_score = (
+            switches / (len(layer_compositions) - 1) if len(layer_compositions) > 1 else 0
+        )
 
     try:
         gx, gy = infer_grid(_plane_coords(atom_sites, layer_axis))
@@ -564,8 +582,14 @@ def extract_features(cif_data: Optional[dict[str, Any]]) -> Optional[dict[str, A
             except Exception:
                 logger.debug("Could not get cation radius for element %s", e)
 
-    avg_cation_radius = sum(r * c for r, c in cation_sizes) / sum(c for _, c in cation_sizes) if cation_sizes else 0
-    radius_range = (max(r for r, _ in cation_sizes) - min(r for r, _ in cation_sizes)) if len(cation_sizes) > 1 else 0
+    avg_cation_radius = (
+        sum(r * c for r, c in cation_sizes) / sum(c for _, c in cation_sizes) if cation_sizes else 0
+    )
+    radius_range = (
+        (max(r for r, _ in cation_sizes) - min(r for r, _ in cation_sizes))
+        if len(cation_sizes) > 1
+        else 0
+    )
 
     z_layer_pattern = []
     for lc in layer_compositions:
@@ -577,7 +601,9 @@ def extract_features(cif_data: Optional[dict[str, Any]]) -> Optional[dict[str, A
     for rl in range(1, len(z_layer_pattern) // 2 + 1):
         if len(z_layer_pattern) % rl == 0:
             pattern = z_layer_pattern[:rl]
-            is_repeat = all(z_layer_pattern[i] == pattern[i % rl] for i in range(len(z_layer_pattern)))
+            is_repeat = all(
+                z_layer_pattern[i] == pattern[i % rl] for i in range(len(z_layer_pattern))
+            )
             if is_repeat and rl < len(z_layer_pattern):
                 repeat_len = rl
                 break
@@ -592,7 +618,15 @@ def extract_features(cif_data: Optional[dict[str, Any]]) -> Optional[dict[str, A
     n_m6_layers = sum(1 for t in layer_types_list if t == "M6")
     n_m7_layers = sum(1 for t in layer_types_list if t == "M7")
     n_t_layers = sum(1 for t in layer_types_list if t == "T")
-    n_main_layers = n_xo_layers + n_xo2_layers + n_xo3_layers + n_x_layers + n_xbo3_layers + n_bo3_layers + n_xb3o6_layers
+    n_main_layers = (
+        n_xo_layers
+        + n_xo2_layers
+        + n_xo3_layers
+        + n_x_layers
+        + n_xbo3_layers
+        + n_bo3_layers
+        + n_xb3o6_layers
+    )
     n_m_layers = n_m6_layers + n_m7_layers
 
     layer_type_seq = "-".join(layer_types_list)
@@ -610,26 +644,30 @@ def extract_features(cif_data: Optional[dict[str, Any]]) -> Optional[dict[str, A
 
     xo3_m7_pairs = 0
     for i in range(len(layer_types_list) - 1):
-        if (layer_types_list[i] == "XO3" and layer_types_list[i + 1] == "M7") or \
-           (layer_types_list[i] == "M7" and layer_types_list[i + 1] == "XO3"):
+        if (layer_types_list[i] == "XO3" and layer_types_list[i + 1] == "M7") or (
+            layer_types_list[i] == "M7" and layer_types_list[i + 1] == "XO3"
+        ):
             xo3_m7_pairs += 1
 
     xo3_t_pairs = 0
     for i in range(len(layer_types_list) - 1):
-        if (layer_types_list[i] == "XO3" and layer_types_list[i + 1] == "T") or \
-           (layer_types_list[i] == "T" and layer_types_list[i + 1] == "XO3"):
+        if (layer_types_list[i] == "XO3" and layer_types_list[i + 1] == "T") or (
+            layer_types_list[i] == "T" and layer_types_list[i + 1] == "XO3"
+        ):
             xo3_t_pairs += 1
 
     xo_t_pairs = 0
     for i in range(len(layer_types_list) - 1):
-        if (layer_types_list[i] == "XO" and layer_types_list[i + 1] == "T") or \
-           (layer_types_list[i] == "T" and layer_types_list[i + 1] == "XO"):
+        if (layer_types_list[i] == "XO" and layer_types_list[i + 1] == "T") or (
+            layer_types_list[i] == "T" and layer_types_list[i + 1] == "XO"
+        ):
             xo_t_pairs += 1
 
     xo2_t_pairs = 0
     for i in range(len(layer_types_list) - 1):
-        if (layer_types_list[i] == "XO2" and layer_types_list[i + 1] == "T") or \
-           (layer_types_list[i] == "T" and layer_types_list[i + 1] == "XO2"):
+        if (layer_types_list[i] == "XO2" and layer_types_list[i + 1] == "T") or (
+            layer_types_list[i] == "T" and layer_types_list[i + 1] == "XO2"
+        ):
             xo2_t_pairs += 1
 
     main_to_m_ratio = n_main_layers / max(n_m_layers, 1)
@@ -750,7 +788,9 @@ def extract_layer_features(cif_data: Optional[dict[str, Any]]) -> Optional[list[
         try:
             gx, gy = infer_grid(_plane_coords(layer_atoms, layer_axis))
         except Exception:
-            logger.debug("Grid inference failed for layer at z=%.4f in extract_layer_features", z_val)
+            logger.debug(
+                "Grid inference failed for layer at z=%.4f in extract_layer_features", z_val
+            )
             gx, gy = 1, 1
         gx = min(gx, 100)
         gy = min(gy, 100)
@@ -787,16 +827,18 @@ def extract_layer_features(cif_data: Optional[dict[str, Any]]) -> Optional[list[
             else:
                 layer_type = "M7"
 
-        layer_infos.append({
-            "z": round(z_val, 4),
-            "n_atoms": len(layer_atoms),
-            "elements": dict(elements_in_layer),
-            "has_oxygen": has_o,
-            "x_to_o_ratio": (round(x_to_o, 4) if x_to_o is not None else None),
-            "grid_x": gx,
-            "grid_y": gy,
-            "predicted_type": layer_type,
-        })
+        layer_infos.append(
+            {
+                "z": round(z_val, 4),
+                "n_atoms": len(layer_atoms),
+                "elements": dict(elements_in_layer),
+                "has_oxygen": has_o,
+                "x_to_o_ratio": (round(x_to_o, 4) if x_to_o is not None else None),
+                "grid_x": gx,
+                "grid_y": gy,
+                "predicted_type": layer_type,
+            }
+        )
 
     return layer_infos
 
@@ -975,6 +1017,7 @@ def _generate_layer_sequences() -> list[tuple[str, ...]]:
         A deduplicated list of layer mode tuples.
     """
     import itertools
+
     main_pool = ["XO3", "XO2", "XO", "XBO3", "XB3O6", "BO3", "X"]
     m_pool = ["M7", "M6"]
     sequences = []
@@ -1117,6 +1160,7 @@ def _generate_stacking_training_data(max_sequences: int = 500) -> tuple[np.ndarr
         A tuple (X, y) of numpy arrays for features and labels.
     """
     from layer_generator import LayeredXOGenerator
+
     gen = LayeredXOGenerator(enable_t=True)
     sequences = _generate_layer_sequences()
 
@@ -1161,7 +1205,9 @@ def _generate_stacking_training_data(max_sequences: int = 500) -> tuple[np.ndarr
                         y_data.append(label)
 
             except Exception:
-                logger.debug("Stacking data generation failed for modes=%s, stack=%s", layer_modes, stack_seq)
+                logger.debug(
+                    "Stacking data generation failed for modes=%s, stack=%s", layer_modes, stack_seq
+                )
                 continue
 
     return np.array(X_data), np.array(y_data)
@@ -1216,10 +1262,12 @@ def train_decision_tree(
         return {"success": False, "error": "layer_generator模块未找到，无法生成训练数据"}
 
     if progress_callback:
-        progress_callback({
-            "phase": "generating_data",
-            "message": "正在使用LayeredXOGenerator生成堆垛训练数据...",
-        })
+        progress_callback(
+            {
+                "phase": "generating_data",
+                "message": "正在使用LayeredXOGenerator生成堆垛训练数据...",
+            }
+        )
 
     X, y = _generate_stacking_training_data(max_sequences=max_sequences)
 
@@ -1231,13 +1279,17 @@ def train_decision_tree(
     min_class_count = min(class_counts.values())
 
     if progress_callback:
-        progress_callback({
-            "phase": "data_ready",
-            "n_samples": len(X),
-            "n_features": X.shape[1],
-            "n_classes": n_classes,
-            "class_distribution": {IDX_TO_SHIFT.get(int(k), str(k)): v for k, v in class_counts.items()},
-        })
+        progress_callback(
+            {
+                "phase": "data_ready",
+                "n_samples": len(X),
+                "n_features": X.shape[1],
+                "n_classes": n_classes,
+                "class_distribution": {
+                    IDX_TO_SHIFT.get(int(k), str(k)): v for k, v in class_counts.items()
+                },
+            }
+        )
 
     train_test_split = sk["train_test_split"]
     cross_val_score = sk["cross_val_score"]
@@ -1254,12 +1306,14 @@ def train_decision_tree(
     )
 
     if progress_callback:
-        progress_callback({
-            "phase": "training",
-            "message": "正在训练堆垛预测决策树...",
-            "n_train": len(X_train),
-            "n_test": len(X_test),
-        })
+        progress_callback(
+            {
+                "phase": "training",
+                "message": "正在训练堆垛预测决策树...",
+                "n_train": len(X_train),
+                "n_test": len(X_test),
+            }
+        )
 
     depths = [5, 8, 10, 12, 15] if max_depth is None else [max_depth]
     best_overall = None
@@ -1292,23 +1346,29 @@ def train_decision_tree(
                                 cv_mean = round(float(cv_scores.mean()), 4)
                                 cv_std = round(float(cv_scores.std()), 4)
                             except Exception:
-                                logger.debug("Cross-validation failed for depth=%s, criterion=%s", depth, criterion)
+                                logger.debug(
+                                    "Cross-validation failed for depth=%s, criterion=%s",
+                                    depth,
+                                    criterion,
+                                )
 
                         overfit = train_acc - test_acc
 
                         composite = cv_mean - cv_std * 0.3 - max(0, overfit - 0.05) * 2.0
 
-                        all_results.append({
-                            "max_depth": depth,
-                            "criterion": criterion,
-                            "min_samples_leaf": msl,
-                            "min_samples_split": mss,
-                            "test_accuracy": round(float(test_acc), 4),
-                            "train_accuracy": round(float(train_acc), 4),
-                            "overfit": round(float(overfit), 4),
-                            "cv_mean": cv_mean,
-                            "cv_std": cv_std,
-                        })
+                        all_results.append(
+                            {
+                                "max_depth": depth,
+                                "criterion": criterion,
+                                "min_samples_leaf": msl,
+                                "min_samples_split": mss,
+                                "test_accuracy": round(float(test_acc), 4),
+                                "train_accuracy": round(float(train_acc), 4),
+                                "overfit": round(float(overfit), 4),
+                                "cv_mean": cv_mean,
+                                "cv_std": cv_std,
+                            }
+                        )
 
                         if composite > best_overall_score:
                             best_overall_score = composite
@@ -1325,7 +1385,13 @@ def train_decision_tree(
                                 "min_samples_split": mss,
                             }
                     except Exception:
-                        logger.debug("Training failed for depth=%s, criterion=%s, msl=%s, mss=%s", depth, criterion, msl, mss)
+                        logger.debug(
+                            "Training failed for depth=%s, criterion=%s, msl=%s, mss=%s",
+                            depth,
+                            criterion,
+                            msl,
+                            mss,
+                        )
                         continue
 
     if best_overall is None:
@@ -1339,14 +1405,17 @@ def train_decision_tree(
 
     model_id = f"stacking_dt_{random.randint(10000, 99999)}"
     model_path = MODEL_DIR / f"{model_id}.pkl"
-    joblib.dump({
-        "model": best_clf,
-        "scaler": None,
-        "needs_scaling": False,
-        "feature_keys": STACKING_FEATURE_NAMES,
-        "model_type": "stacking_dt",
-        "label_map": IDX_TO_SHIFT,
-    }, model_path)
+    joblib.dump(
+        {
+            "model": best_clf,
+            "scaler": None,
+            "needs_scaling": False,
+            "feature_keys": STACKING_FEATURE_NAMES,
+            "model_type": "stacking_dt",
+            "label_map": IDX_TO_SHIFT,
+        },
+        model_path,
+    )
 
     feature_importances = []
     if hasattr(best_clf, "feature_importances_"):
@@ -1392,7 +1461,9 @@ def train_decision_tree(
         "feature_keys": STACKING_FEATURE_NAMES,
         "n_total_samples": len(X),
         "n_valid_samples": len(X),
-        "class_distribution": {IDX_TO_SHIFT.get(int(k), str(k)): v for k, v in class_counts.items()},
+        "class_distribution": {
+            IDX_TO_SHIFT.get(int(k), str(k)): v for k, v in class_counts.items()
+        },
         "test_ratio": actual_test_ratio,
         "training_data_source": "LayeredXOGenerator规则生成",
     }
@@ -1524,15 +1595,17 @@ def predict_stacking(
             except Exception:
                 logger.debug("predict_proba failed for layer %d", i)
 
-        predictions.append({
-            "layer_index": i,
-            "mode": final_modes[i],
-            "rule_shift": rule_shift,
-            "predicted_shift": pred_shift,
-            "confidence": max(proba_dict.values()) if proba_dict else 0,
-            "probabilities": proba_dict,
-            "correct": is_correct,
-        })
+        predictions.append(
+            {
+                "layer_index": i,
+                "mode": final_modes[i],
+                "rule_shift": rule_shift,
+                "predicted_shift": pred_shift,
+                "confidence": max(proba_dict.values()) if proba_dict else 0,
+                "probabilities": proba_dict,
+                "correct": is_correct,
+            }
+        )
         rule_shifts.append(rule_shift)
 
     accuracy = correct / len(final_modes) if final_modes else 0
@@ -1617,13 +1690,15 @@ def list_models() -> list[dict[str, Any]]:
                     meta = json.load(f)
             except Exception:
                 logger.warning("Failed to read model meta: %s", meta_path)
-        models.append({
-            "model_id": model_id,
-            "created": meta.get("created", ""),
-            "test_accuracy": meta.get("test_accuracy", 0),
-            "n_samples": meta.get("n_samples", 0),
-            "n_classes": meta.get("n_classes", 0),
-        })
+        models.append(
+            {
+                "model_id": model_id,
+                "created": meta.get("created", ""),
+                "test_accuracy": meta.get("test_accuracy", 0),
+                "n_samples": meta.get("n_samples", 0),
+                "n_classes": meta.get("n_classes", 0),
+            }
+        )
     return sorted(models, key=lambda x: x.get("test_accuracy", 0), reverse=True)
 
 

@@ -7,12 +7,18 @@ _base_dir = Path(__file__).resolve().parent
 # --- Security ---
 SECRET_KEY: str = os.environ.get("SECRET_KEY", "change-me-in-production")
 if SECRET_KEY == "change-me-in-production":
-    warnings.warn("SECRET_KEY is using the default value. Set the SECRET_KEY environment variable in production!", RuntimeWarning)
+    warnings.warn(
+        "SECRET_KEY is using the default value. Set the SECRET_KEY environment variable in production!",
+        RuntimeWarning,
+    )
 
 ADMIN_USER: str = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS: str = os.environ.get("ADMIN_PASS", "123")
 if ADMIN_USER == "admin" and ADMIN_PASS == "123":
-    warnings.warn("ADMIN_USER/ADMIN_PASS are using default values. Set them via environment variables in production!", RuntimeWarning)
+    warnings.warn(
+        "ADMIN_USER/ADMIN_PASS are using default values. Set them via environment variables in production!",
+        RuntimeWarning,
+    )
 
 # --- Database ---
 DATABASE_URL: str = os.environ.get(

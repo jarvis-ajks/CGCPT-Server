@@ -6,17 +6,20 @@ HOST = "118.31.164.41"
 USER = "root"
 KEY = r"D:\Projects\CGCPT-Server\id_ed25519"
 
+
 def connect():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(HOST, username=USER, key_filename=KEY, timeout=30)
     return ssh
 
+
 def upload_file(ssh, local, remote):
     sftp = ssh.open_sftp()
     sftp.put(local, remote)
     sftp.close()
     print(f"[OK] Uploaded -> {remote}")
+
 
 def run_cmd(ssh, cmd, timeout=600):
     print(f"\n>>> {cmd[:120]}...")
@@ -28,6 +31,7 @@ def run_cmd(ssh, cmd, timeout=600):
     if err:
         print(f"[STDERR] {err}")
     return out, err
+
 
 def main():
     ssh = connect()
@@ -92,7 +96,9 @@ else:
     os.unlink(tmp_path)
 
     print("\n=== Running training ===")
-    run_cmd(ssh, "cd /opt/CGCPT && /opt/CGCPT/venv/bin/python3 /opt/CGCPT/_run_train.py", timeout=600)
+    run_cmd(
+        ssh, "cd /opt/CGCPT && /opt/CGCPT/venv/bin/python3 /opt/CGCPT/_run_train.py", timeout=600
+    )
 
     print("\n=== Verify API ===")
     run_cmd(ssh, "curl -s http://localhost/CGCPT/api/health | python3 -m json.tool")
@@ -100,6 +106,7 @@ else:
 
     ssh.close()
     print("\n=== All done ===")
+
 
 if __name__ == "__main__":
     main()

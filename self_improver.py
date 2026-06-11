@@ -30,6 +30,7 @@ HISTORY_DIR.mkdir(exist_ok=True)
 # 1. 训练历史存储
 # ──────────────────────────────────────────────
 
+
 def save_training_record(record: dict) -> str:
     record_id = f"iter_{record.get('iteration', 0)}_{int(time.time())}"
     record["id"] = record_id
@@ -79,6 +80,7 @@ def get_improvement_trajectory() -> list:
 # 2. 误差分析器
 # ──────────────────────────────────────────────
 
+
 def analyze_errors(model_id: str, test_X=None, test_y=None, layer_modes_list=None):
     """分析模型预测错误，找出最难预测的层模式和特征组合"""
     from stacking_analyzer import _load_model, IDX_TO_SHIFT, MODE_LIST, MODE_TO_IDX
@@ -93,6 +95,7 @@ def analyze_errors(model_id: str, test_X=None, test_y=None, layer_modes_list=Non
 
     if test_X is None or test_y is None:
         from stacking_analyzer import _generate_stacking_training_data
+
         test_X, test_y = _generate_stacking_training_data(max_sequences=100)
 
     y_pred = clf.predict(test_X)
@@ -109,15 +112,19 @@ def analyze_errors(model_id: str, test_X=None, test_y=None, layer_modes_list=Non
         pred_shift = label_map.get(int(y_pred[i]), str(y_pred[i]))
 
         if errors[i]:
-            error_by_mode[mode_name].append({
-                "true": true_shift,
-                "pred": pred_shift,
-                "features": test_X[i].tolist(),
-            })
-            error_by_shift[true_shift].append({
-                "mode": mode_name,
-                "pred": pred_shift,
-            })
+            error_by_mode[mode_name].append(
+                {
+                    "true": true_shift,
+                    "pred": pred_shift,
+                    "features": test_X[i].tolist(),
+                }
+            )
+            error_by_shift[true_shift].append(
+                {
+                    "mode": mode_name,
+                    "pred": pred_shift,
+                }
+            )
             error_features.append(test_X[i])
 
     mode_error_rates = {}
@@ -143,19 +150,28 @@ def analyze_errors(model_id: str, test_X=None, test_y=None, layer_modes_list=Non
         top_var_idx = np.argsort(feature_var)[-5:]
         for idx in top_var_idx:
             from stacking_analyzer import STACKING_FEATURE_NAMES
-            fname = STACKING_FEATURE_NAMES[idx] if idx < len(STACKING_FEATURE_NAMES) else f"feat_{idx}"
-            hardest_combos.append({
-                "feature": fname,
-                "variance": round(float(feature_var[idx]), 6),
-            })
+
+            fname = (
+                STACKING_FEATURE_NAMES[idx] if idx < len(STACKING_FEATURE_NAMES) else f"feat_{idx}"
+            )
+            hardest_combos.append(
+                {
+                    "feature": fname,
+                    "variance": round(float(feature_var[idx]), 6),
+                }
+            )
 
     return {
         "total_errors": int(errors.sum()),
         "total_samples": len(test_y),
         "error_rate": round(float(errors.mean()), 4),
-        "mode_error_rates": dict(sorted(mode_error_rates.items(), key=lambda x: x[1], reverse=True)),
+        "mode_error_rates": dict(
+            sorted(mode_error_rates.items(), key=lambda x: x[1], reverse=True)
+        ),
         "shift_confusion": {k: dict(v) for k, v in shift_confusion.items()},
-        "hardest_modes": sorted(error_by_mode.keys(), key=lambda m: len(error_by_mode[m]), reverse=True)[:5],
+        "hardest_modes": sorted(
+            error_by_mode.keys(), key=lambda m: len(error_by_mode[m]), reverse=True
+        )[:5],
         "high_variance_features": hardest_combos,
     }
 
@@ -163,6 +179,7 @@ def analyze_errors(model_id: str, test_X=None, test_y=None, layer_modes_list=Non
 # ──────────────────────────────────────────────
 # 3. 特征工程自进化
 # ──────────────────────────────────────────────
+
 
 def engineer_advanced_features(X, feature_names=None):
     """自动生成高阶交叉特征"""
@@ -226,12 +243,20 @@ def engineer_advanced_features(X, feature_names=None):
 # 4. 难例挖掘 — 针对性增强训练数据
 # ──────────────────────────────────────────────
 
+
 def mine_hard_examples(model_id: str, n_hard_sequences=200):
     """生成模型最易犯错的层模式组合的训练数据"""
     from stacking_analyzer import (
-        _load_model, predict_stacking, IDX_TO_SHIFT, MODE_LIST,
-        MAIN_MODES, X_MODES_SET, M_MODES_SET, SHIFT_TO_IDX,
-        _generate_layer_sequences, _extract_features_for_layer,
+        _load_model,
+        predict_stacking,
+        IDX_TO_SHIFT,
+        MODE_LIST,
+        MAIN_MODES,
+        X_MODES_SET,
+        M_MODES_SET,
+        SHIFT_TO_IDX,
+        _generate_layer_sequences,
+        _extract_features_for_layer,
         STACKING_FEATURE_NAMES,
     )
 
@@ -244,6 +269,7 @@ def mine_hard_examples(model_id: str, n_hard_sequences=200):
     hard_y = []
 
     from layer_generator import LayeredXOGenerator
+
     gen = LayeredXOGenerator(enable_t=True)
 
     STACK_SEQUENCES = ["ABC", "AB", "ACB", "AAB", "ABB", "AA", "ABCA", "ABCAB", "ABCB"]
@@ -299,9 +325,11 @@ def mine_hard_examples(model_id: str, n_hard_sequences=200):
 # 5. 贝叶斯超参优化
 # ──────────────────────────────────────────────
 
+
 def bayesian_optimize(X, y, n_trials=30, cv_folds=3):
     """使用贝叶斯优化搜索最优超参（无需optuna，纯numpy实现）"""
     from stacking_analyzer import _ensure_sklearn
+
     sk = _ensure_sklearn()
     if not sk:
         return None
@@ -313,7 +341,9 @@ def bayesian_optimize(X, y, n_trials=30, cv_folds=3):
     RandomForestClassifier = sk["RandomForestClassifier"]
     GradientBoostingClassifier = sk["GradientBoostingClassifier"]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
 
     search_space = {
         "model_type": ["dt", "rf", "gb"],
@@ -416,16 +446,18 @@ def bayesian_optimize(X, y, n_trials=30, cv_folds=3):
 
             composite = cv_mean - cv_std * 0.3 - max(0, overfit - 0.05) * 2.0
 
-            results.append({
-                "trial": trial,
-                "config": {k: str(v) for k, v in config.items()},
-                "test_accuracy": round(float(test_acc), 4),
-                "train_accuracy": round(float(train_acc), 4),
-                "cv_mean": round(cv_mean, 4),
-                "cv_std": round(cv_std, 4),
-                "overfit": round(float(overfit), 4),
-                "composite": round(float(composite), 4),
-            })
+            results.append(
+                {
+                    "trial": trial,
+                    "config": {k: str(v) for k, v in config.items()},
+                    "test_accuracy": round(float(test_acc), 4),
+                    "train_accuracy": round(float(train_acc), 4),
+                    "cv_mean": round(cv_mean, 4),
+                    "cv_std": round(cv_std, 4),
+                    "overfit": round(float(overfit), 4),
+                    "composite": round(float(composite), 4),
+                }
+            )
 
             if composite > best_score:
                 best_score = composite
@@ -448,9 +480,11 @@ def bayesian_optimize(X, y, n_trials=30, cv_folds=3):
 # 6. 集成学习融合
 # ──────────────────────────────────────────────
 
+
 def build_ensemble(X, y, n_models=5, cv_folds=3):
     """构建多模型集成（投票+Stacking）"""
     from stacking_analyzer import _ensure_sklearn, IDX_TO_SHIFT, STACKING_FEATURE_NAMES
+
     sk = _ensure_sklearn()
     if not sk:
         return None
@@ -460,16 +494,38 @@ def build_ensemble(X, y, n_models=5, cv_folds=3):
     cross_val_score = sk["cross_val_score"]
     joblib = sk["joblib"]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
 
     base_models = []
 
     configs = [
-        ("dt_gini_deep", sk["DecisionTreeClassifier"], {"max_depth": 15, "criterion": "gini", "min_samples_leaf": 2, "random_state": 42}),
-        ("dt_entropy_mid", sk["DecisionTreeClassifier"], {"max_depth": 10, "criterion": "entropy", "min_samples_leaf": 3, "random_state": 42}),
-        ("rf_standard", sk["RandomForestClassifier"], {"n_estimators": 100, "max_depth": 12, "min_samples_leaf": 2, "random_state": 42}),
-        ("rf_deep", sk["RandomForestClassifier"], {"n_estimators": 150, "max_depth": 15, "min_samples_leaf": 1, "random_state": 42}),
-        ("gb_standard", sk["GradientBoostingClassifier"], {"n_estimators": 80, "learning_rate": 0.1, "max_depth": 5, "random_state": 42}),
+        (
+            "dt_gini_deep",
+            sk["DecisionTreeClassifier"],
+            {"max_depth": 15, "criterion": "gini", "min_samples_leaf": 2, "random_state": 42},
+        ),
+        (
+            "dt_entropy_mid",
+            sk["DecisionTreeClassifier"],
+            {"max_depth": 10, "criterion": "entropy", "min_samples_leaf": 3, "random_state": 42},
+        ),
+        (
+            "rf_standard",
+            sk["RandomForestClassifier"],
+            {"n_estimators": 100, "max_depth": 12, "min_samples_leaf": 2, "random_state": 42},
+        ),
+        (
+            "rf_deep",
+            sk["RandomForestClassifier"],
+            {"n_estimators": 150, "max_depth": 15, "min_samples_leaf": 1, "random_state": 42},
+        ),
+        (
+            "gb_standard",
+            sk["GradientBoostingClassifier"],
+            {"n_estimators": 80, "learning_rate": 0.1, "max_depth": 5, "random_state": 42},
+        ),
     ]
 
     trained_models = []
@@ -495,13 +551,15 @@ def build_ensemble(X, y, n_models=5, cv_folds=3):
                 pass
 
             trained_models.append(clf)
-            individual_results.append({
-                "name": name,
-                "test_accuracy": round(float(acc), 4),
-                "train_accuracy": round(float(train_acc), 4),
-                "cv_mean": round(cv_mean, 4),
-                "cv_std": round(cv_std, 4),
-            })
+            individual_results.append(
+                {
+                    "name": name,
+                    "test_accuracy": round(float(acc), 4),
+                    "train_accuracy": round(float(train_acc), 4),
+                    "cv_mean": round(cv_mean, 4),
+                    "cv_std": round(cv_std, 4),
+                }
+            )
         except Exception:
             continue
 
@@ -551,18 +609,30 @@ def build_ensemble(X, y, n_models=5, cv_folds=3):
 # 7. 自我迭代优化主循环
 # ──────────────────────────────────────────────
 
-def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
-                           use_feature_engineering=True, use_hard_mining=True,
-                           use_ensemble=True, use_bayesian=True,
-                           progress_callback=None):
+
+def self_improve_iteration(
+    max_iterations=3,
+    max_sequences=300,
+    cv_folds=3,
+    use_feature_engineering=True,
+    use_hard_mining=True,
+    use_ensemble=True,
+    use_bayesian=True,
+    progress_callback=None,
+):
     """
     自我迭代优化主循环：
     1. 基线训练 → 2. 误差分析 → 3. 特征增强 → 4. 难例挖掘 → 5. 贝叶斯优化 → 6. 集成融合 → 7. 保存最优
     """
     from stacking_analyzer import (
-        _ensure_sklearn, _generate_stacking_training_data, train_decision_tree,
-        IDX_TO_SHIFT, STACKING_FEATURE_NAMES, MODEL_DIR,
+        _ensure_sklearn,
+        _generate_stacking_training_data,
+        train_decision_tree,
+        IDX_TO_SHIFT,
+        STACKING_FEATURE_NAMES,
+        MODEL_DIR,
     )
+
     sk = _ensure_sklearn()
     if not sk:
         return {"success": False, "error": "scikit-learn未安装"}
@@ -578,12 +648,14 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
         strategy_parts = []
 
         if progress_callback:
-            progress_callback({
-                "phase": "iteration_start",
-                "iteration": iteration,
-                "max_iterations": max_iterations,
-                "message": f"开始第 {iteration + 1} 轮迭代优化...",
-            })
+            progress_callback(
+                {
+                    "phase": "iteration_start",
+                    "iteration": iteration,
+                    "max_iterations": max_iterations,
+                    "message": f"开始第 {iteration + 1} 轮迭代优化...",
+                }
+            )
 
         # ── Step 1: 生成训练数据 ──
         X, y = _generate_stacking_training_data(max_sequences=max_sequences)
@@ -627,7 +699,8 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
                 strategy_parts.append("bayesian_optimization")
         else:
             train_result = train_decision_tree(
-                max_sequences=max_sequences, cv_folds=cv_folds,
+                max_sequences=max_sequences,
+                cv_folds=cv_folds,
                 progress_callback=progress_callback,
             )
             if train_result.get("success"):
@@ -638,10 +711,13 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
 
         if best_clf is None:
             train_result = train_decision_tree(
-                max_sequences=max_sequences, cv_folds=cv_folds,
+                max_sequences=max_sequences,
+                cv_folds=cv_folds,
             )
             if not train_result.get("success"):
-                iteration_results.append({"success": False, "error": train_result.get("error"), "iteration": iteration})
+                iteration_results.append(
+                    {"success": False, "error": train_result.get("error"), "iteration": iteration}
+                )
                 continue
             saved = _load_model_local(train_result["model_id"])
             if saved:
@@ -654,7 +730,9 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
         accuracy_score = sk["accuracy_score"]
         cross_val_score = sk["cross_val_score"]
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
         best_clf.fit(X_train, y_train)
 
         test_acc = accuracy_score(y_test, best_clf.predict(X_test))
@@ -699,16 +777,19 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
         model_path = MODEL_DIR / f"{model_id}.pkl"
 
         is_ensemble = isinstance(best_clf, list)
-        joblib.dump({
-            "model": best_clf,
-            "scaler": None,
-            "needs_scaling": False,
-            "feature_keys": aug_feature_names,
-            "model_type": "ensemble" if is_ensemble else "stacking_dt",
-            "label_map": IDX_TO_SHIFT,
-            "is_ensemble": is_ensemble,
-            "iteration": iteration,
-        }, model_path)
+        joblib.dump(
+            {
+                "model": best_clf,
+                "scaler": None,
+                "needs_scaling": False,
+                "feature_keys": aug_feature_names,
+                "model_type": "ensemble" if is_ensemble else "stacking_dt",
+                "label_map": IDX_TO_SHIFT,
+                "is_ensemble": is_ensemble,
+                "iteration": iteration,
+            },
+            model_path,
+        )
 
         # ── Step 8: 误差分析 ──
         error_analysis = None
@@ -743,14 +824,16 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
         iteration_results.append(record)
 
         if progress_callback:
-            progress_callback({
-                "phase": "iteration_complete",
-                "iteration": iteration,
-                "test_accuracy": round(float(test_acc), 4),
-                "cv_mean": round(cv_mean, 4),
-                "strategy": "+".join(strategy_parts),
-                "message": f"第 {iteration + 1} 轮完成: 准确率 {round(float(test_acc) * 100, 2)}%",
-            })
+            progress_callback(
+                {
+                    "phase": "iteration_complete",
+                    "iteration": iteration,
+                    "test_accuracy": round(float(test_acc), 4),
+                    "cv_mean": round(cv_mean, 4),
+                    "strategy": "+".join(strategy_parts),
+                    "message": f"第 {iteration + 1} 轮完成: 准确率 {round(float(test_acc) * 100, 2)}%",
+                }
+            )
 
     # ── 最终汇总 ──
     best_iter = max(iteration_results, key=lambda r: r.get("cv_mean", 0))
@@ -762,12 +845,15 @@ def self_improve_iteration(max_iterations=3, max_sequences=300, cv_folds=3,
         "best_iteration": best_iter,
         "improvement_trajectory": trajectory,
         "all_iterations": iteration_results,
-        "total_improvement": round(
-            (best_iter.get("cv_mean", 0) - trajectory[0]["cv_mean"]) * 100, 2
-        ) if len(trajectory) > 1 else 0,
+        "total_improvement": (
+            round((best_iter.get("cv_mean", 0) - trajectory[0]["cv_mean"]) * 100, 2)
+            if len(trajectory) > 1
+            else 0
+        ),
     }
 
 
 def _load_model_local(model_id):
     from stacking_analyzer import _load_model
+
     return _load_model(model_id)

@@ -78,8 +78,18 @@ def parse_number_or_fraction(value):
 
 
 class LayeredXOGenerator:
-    def __init__(self, x_element="Ba", o_element="O", m_element="Mg", t_element="Si", b_element="B",
-                 target_xo_distance=2.77648, nx=6, ny=6, enable_t=True):
+    def __init__(
+        self,
+        x_element="Ba",
+        o_element="O",
+        m_element="Mg",
+        t_element="Si",
+        b_element="B",
+        target_xo_distance=2.77648,
+        nx=6,
+        ny=6,
+        enable_t=True,
+    ):
         self.x_element = x_element
         self.o_element = o_element
         self.m_element = m_element
@@ -254,12 +264,22 @@ class LayeredXOGenerator:
         gx, gy = self.infer_grid_from_sites(sites)
         return np.array([dx_steps / gx, dy_steps / gy], dtype=float)
 
-    def build_total_shift_vec_from_sites(self, sites, shift_label, dx_steps=0.0, dy_steps=0.0,
-                                         mode=None, layer_modes=None, current_idx=None):
+    def build_total_shift_vec_from_sites(
+        self,
+        sites,
+        shift_label,
+        dx_steps=0.0,
+        dy_steps=0.0,
+        mode=None,
+        layer_modes=None,
+        current_idx=None,
+    ):
         if mode is None:
             shift_base = self.get_shift_map()[shift_label]
         else:
-            shift_base = self.get_shift_map_for_mode(mode, layer_modes=layer_modes, current_idx=current_idx)[shift_label]
+            shift_base = self.get_shift_map_for_mode(
+                mode, layer_modes=layer_modes, current_idx=current_idx
+            )[shift_label]
         return shift_base + self.build_user_translation_vec_from_sites(sites, dx_steps, dy_steps)
 
     def wrap_delta(self, a, b):
@@ -349,7 +369,11 @@ class LayeredXOGenerator:
     def build_full_shift_sequence_without_T(self, layer_modes, stack_sequence_text):
         n = len(layer_modes)
         x_layers_count = sum(1 for m in layer_modes if self.is_x_layer(m))
-        x_shifts = self.normalize_stack_sequence(stack_sequence_text, x_layers_count) if x_layers_count > 0 else []
+        x_shifts = (
+            self.normalize_stack_sequence(stack_sequence_text, x_layers_count)
+            if x_layers_count > 0
+            else []
+        )
 
         full_shift_sequence = [None] * n
         main_shifts = []
@@ -378,7 +402,9 @@ class LayeredXOGenerator:
 
         return full_shift_sequence, main_shifts
 
-    def insert_T_layers(self, layer_modes, shift_sequence, z_sequence, layer_angles, layer_dxs, layer_dys):
+    def insert_T_layers(
+        self, layer_modes, shift_sequence, z_sequence, layer_angles, layer_dxs, layer_dys
+    ):
         if not self.enable_t:
             return layer_modes, shift_sequence, z_sequence, layer_angles, layer_dxs, layer_dys
 
@@ -413,12 +439,20 @@ class LayeredXOGenerator:
                 left_shift = shift_sequence[i]
                 right_shift = shift_sequence[j]
 
-                t_shift = left_shift if left_shift == right_shift else self.third_shift(left_shift, right_shift)
+                t_shift = (
+                    left_shift
+                    if left_shift == right_shift
+                    else self.third_shift(left_shift, right_shift)
+                )
 
                 z_left = z_sequence[i]
                 z_right = z_sequence[j] if j != 0 else z_sequence[j] + c_frac_full
                 delta = z_right - z_left
-                z_t = (z_left + 0.25 * delta) if insertion_after[i] == "left" else (z_left + 0.75 * delta)
+                z_t = (
+                    (z_left + 0.25 * delta)
+                    if insertion_after[i] == "left"
+                    else (z_left + 0.75 * delta)
+                )
 
                 new_modes.append("T")
                 new_shifts.append(t_shift)
@@ -451,7 +485,9 @@ class LayeredXOGenerator:
                 prev_idx = (i - 1) % n
                 next_idx = (i + 1) % n
 
-                if not self.is_main_layer(layer_modes[prev_idx]) or not self.is_main_layer(layer_modes[next_idx]):
+                if not self.is_main_layer(layer_modes[prev_idx]) or not self.is_main_layer(
+                    layer_modes[next_idx]
+                ):
                     raise ValueError(f"M6/M7 间隙层异常 (索引 {i})：间隙层必须位于两个主层之间。")
 
                 z_prev = main_z_cart[prev_idx]
@@ -481,7 +517,9 @@ class LayeredXOGenerator:
         elif mode == "XO3":
             x_sites, _ = self.get_layer_sites_XO3(zero_shift)
         elif mode in ["X", "XBO3", "XB3O6"]:
-            x_sites, _, _ = self.get_layer_sites_X_family(mode, zero_shift, flip_b_site=False, base_len=base_len)
+            x_sites, _, _ = self.get_layer_sites_X_family(
+                mode, zero_shift, flip_b_site=False, base_len=base_len
+            )
         elif mode == "BO3":
             x_sites = []
         else:
@@ -500,14 +538,18 @@ class LayeredXOGenerator:
 
         prev_mode = layer_modes[prev_idx]
         prev_theta = layer_angles[prev_idx] if layer_angles is not None else 0.0
-        ref_x_sites = self.get_reference_x_sites_for_main_layer(prev_mode, theta=prev_theta, base_len=base_len)
+        ref_x_sites = self.get_reference_x_sites_for_main_layer(
+            prev_mode, theta=prev_theta, base_len=base_len
+        )
 
         if len(ref_x_sites) > 0:
             return ref_x_sites
 
         next_mode = layer_modes[next_idx]
         next_theta = layer_angles[next_idx] if layer_angles is not None else 0.0
-        ref_x_sites = self.get_reference_x_sites_for_main_layer(next_mode, theta=next_theta, base_len=base_len)
+        ref_x_sites = self.get_reference_x_sites_for_main_layer(
+            next_mode, theta=next_theta, base_len=base_len
+        )
 
         if len(ref_x_sites) > 0:
             return ref_x_sites
@@ -528,8 +570,12 @@ class LayeredXOGenerator:
                     else:
                         o_sites_A.append((base[0], base[1]))
         if is_special_xo:
-            return self.apply_translation(x_sites_special, shift_vec), self.apply_translation(o_sites_special, shift_vec)
-        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(o_sites_A, shift_vec)
+            return self.apply_translation(x_sites_special, shift_vec), self.apply_translation(
+                o_sites_special, shift_vec
+            )
+        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(
+            o_sites_A, shift_vec
+        )
 
     def get_layer_sites_XO2(self, shift_vec):
         x_sites_A, o_sites_A = [], []
@@ -540,14 +586,16 @@ class LayeredXOGenerator:
                 o1 = base + np.array([1 / (3 * self.nx), 1 / (3 * self.ny)])
                 o2 = base + np.array([2 / (3 * self.nx), 2 / (3 * self.ny)])
                 o_sites_A.extend([(o1[0], o1[1]), (o2[0], o2[1])])
-        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(o_sites_A, shift_vec)
+        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(
+            o_sites_A, shift_vec
+        )
 
     def get_layer_sites_XO3(self, shift_vec):
         x_sites_A, o_sites_A = [], []
         directions = {
             "d1": np.array([1 / self.nx, 0.0]),
             "d2": np.array([0.0, 1 / self.ny]),
-            "d3": np.array([1 / self.nx, -1 / self.ny])
+            "d3": np.array([1 / self.nx, -1 / self.ny]),
         }
         for i in range(self.nx):
             for j in range(self.ny):
@@ -555,7 +603,9 @@ class LayeredXOGenerator:
                 x_sites_A.append((base[0], base[1]))
                 for d in directions.values():
                     o_sites_A.append((base[0] + 0.5 * d[0], base[1] + 0.5 * d[1]))
-        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(o_sites_A, shift_vec)
+        return self.apply_translation(x_sites_A, shift_vec), self.apply_translation(
+            o_sites_A, shift_vec
+        )
 
     def get_layer_sites_X_family(self, mode, shift_vec, flip_b_site=False, base_len=None):
         x_sites_A, b_sites_A, o_sites_A = [], [], []
@@ -570,7 +620,7 @@ class LayeredXOGenerator:
         directions = {
             "d1": np.array([1 / self.nx, 0.0]),
             "d2": np.array([0.0, 1 / self.ny]),
-            "d3": np.array([1 / self.nx, -1 / self.ny])
+            "d3": np.array([1 / self.nx, -1 / self.ny]),
         }
 
         if mode in ["X", "XBO3", "BO3"]:
@@ -609,7 +659,7 @@ class LayeredXOGenerator:
                             ((i + 2) % grid_nx, j % grid_ny),
                             (i % grid_nx, (j + 1) % grid_ny),
                             ((i + 1) % grid_nx, (j + 1) % grid_ny),
-                            (i % grid_nx, (j + 2) % grid_ny)
+                            (i % grid_nx, (j + 2) % grid_ny),
                         ]
                         if all(grid_atoms.get(pt) == "O" for pt in pts):
                             b1 = ((i + 1 / 3) / grid_nx, (j + 1 / 3) / grid_ny)
@@ -623,7 +673,7 @@ class LayeredXOGenerator:
                             ((i - 2) % grid_nx, j % grid_ny),
                             (i % grid_nx, (j - 1) % grid_ny),
                             ((i - 1) % grid_nx, (j - 1) % grid_ny),
-                            (i % grid_nx, (j - 2) % grid_ny)
+                            (i % grid_nx, (j - 2) % grid_ny),
                         ]
                         if all(grid_atoms.get(pt) == "O" for pt in pts):
                             b1 = ((i - 1 / 3) / grid_nx, (j - 1 / 3) / grid_ny)
@@ -634,7 +684,7 @@ class LayeredXOGenerator:
         return (
             self.apply_translation(x_sites_A, shift_vec),
             self.apply_translation(b_sites_A, shift_vec),
-            self.apply_translation(o_sites_A, shift_vec)
+            self.apply_translation(o_sites_A, shift_vec),
         )
 
     def get_layer_sites_T(self, shift_vec):
@@ -650,15 +700,24 @@ class LayeredXOGenerator:
             raise ValueError("M7层无法生成：相邻主层中未找到可用的 X 原子网格参考。")
         return self.apply_translation(list(ref_x_sites), shift_vec)
 
-    def get_layer_sites_M6(self, center_shift_label, lattice, layer_modes=None, layer_angles=None,
-                           current_idx=None, base_len=None):
-        shift_vec = self.get_shift_map_for_mode("M6", layer_modes=layer_modes, current_idx=current_idx)[center_shift_label]
+    def get_layer_sites_M6(
+        self,
+        center_shift_label,
+        lattice,
+        layer_modes=None,
+        layer_angles=None,
+        current_idx=None,
+        base_len=None,
+    ):
+        shift_vec = self.get_shift_map_for_mode(
+            "M6", layer_modes=layer_modes, current_idx=current_idx
+        )[center_shift_label]
 
         ref_x_sites = self.find_adjacent_x_sites_for_M7(
             current_idx=current_idx,
             layer_modes=layer_modes,
             layer_angles=layer_angles,
-            base_len=base_len
+            base_len=base_len,
         )
 
         all_m7_sites = self.get_layer_sites_M7_from_adjacent_X(ref_x_sites, np.array([0.0, 0.0]))
@@ -676,8 +735,19 @@ class LayeredXOGenerator:
 
         return self.apply_translation(kept_sites, shift_vec)
 
-    def get_reference_grid_sites_for_layer(self, mode, x_sites, b_sites, o_sites, m_sites, t_sites,
-                                           layer_modes=None, layer_angles=None, current_idx=None, base_len=None):
+    def get_reference_grid_sites_for_layer(
+        self,
+        mode,
+        x_sites,
+        b_sites,
+        o_sites,
+        m_sites,
+        t_sites,
+        layer_modes=None,
+        layer_angles=None,
+        current_idx=None,
+        base_len=None,
+    ):
         """
         用于解释 dx,dy 时使用的参考网格。
         关键要求：
@@ -692,20 +762,34 @@ class LayeredXOGenerator:
                 current_idx=current_idx,
                 layer_modes=layer_modes,
                 layer_angles=layer_angles,
-                base_len=base_len
+                base_len=base_len,
             )
             return self.get_layer_sites_M7_from_adjacent_X(ref_x_sites, np.array([0.0, 0.0]))
 
         return self._pick_grid_sites_by_mode(mode_u, x_sites, b_sites, o_sites, m_sites, t_sites)
 
-    def get_layer_sites(self, mode, shift_label, lattice=None,
-                        is_special_xo=False, t_shift_vec=None, flip_b_site=False,
-                        base_len=None, layer_modes=None, layer_angles=None, current_idx=None):
+    def get_layer_sites(
+        self,
+        mode,
+        shift_label,
+        lattice=None,
+        is_special_xo=False,
+        t_shift_vec=None,
+        flip_b_site=False,
+        base_len=None,
+        layer_modes=None,
+        layer_angles=None,
+        current_idx=None,
+    ):
         mode = mode.upper().strip()
-        shift_vec = self.get_shift_map_for_mode(mode, layer_modes=layer_modes, current_idx=current_idx)[shift_label]
+        shift_vec = self.get_shift_map_for_mode(
+            mode, layer_modes=layer_modes, current_idx=current_idx
+        )[shift_label]
 
         if mode in ["X", "XBO3", "BO3", "XB3O6"]:
-            return self.get_layer_sites_X_family(mode, shift_vec, flip_b_site=flip_b_site, base_len=base_len)
+            return self.get_layer_sites_X_family(
+                mode, shift_vec, flip_b_site=flip_b_site, base_len=base_len
+            )
 
         elif self.is_m_layer(mode):
             if mode == "M7":
@@ -713,7 +797,7 @@ class LayeredXOGenerator:
                     current_idx=current_idx,
                     layer_modes=layer_modes,
                     layer_angles=layer_angles,
-                    base_len=base_len
+                    base_len=base_len,
                 )
                 return self.get_layer_sites_M7_from_adjacent_X(ref_x_sites, shift_vec)
             else:
@@ -723,7 +807,7 @@ class LayeredXOGenerator:
                     layer_modes=layer_modes,
                     layer_angles=layer_angles,
                     current_idx=current_idx,
-                    base_len=base_len
+                    base_len=base_len,
                 )
 
         elif mode == "T":
@@ -739,33 +823,56 @@ class LayeredXOGenerator:
 
         raise ValueError(f"无法匹配的层模式: {mode}")
 
-    def build_structure(self, layer_modes, layer_alphas, stack_sequence_text, layer_angles, layer_dxs, layer_dys):
+    def build_structure(
+        self, layer_modes, layer_alphas, stack_sequence_text, layer_angles, layer_dxs, layer_dys
+    ):
         base_len, exact_flag, ref_mode = self.choose_inplane_length(layer_modes)
-        original_shifts, main_shift_sequence = self.build_full_shift_sequence_without_T(layer_modes, stack_sequence_text)
+        original_shifts, main_shift_sequence = self.build_full_shift_sequence_without_T(
+            layer_modes, stack_sequence_text
+        )
         original_zs, c = self.build_z_sequence_without_T(layer_modes, layer_alphas)
 
-        expanded_modes, expanded_shifts, expanded_zs, expanded_angles, expanded_dxs, expanded_dys = self.insert_T_layers(
+        (
+            expanded_modes,
+            expanded_shifts,
+            expanded_zs,
+            expanded_angles,
+            expanded_dxs,
+            expanded_dys,
+        ) = self.insert_T_layers(
             layer_modes, original_shifts, original_zs, layer_angles, layer_dxs, layer_dys
         )
 
         lattice = Lattice.from_parameters(
-            a=self.nx * base_len, b=self.ny * base_len, c=c,
-            alpha=90, beta=90, gamma=60
+            a=self.nx * base_len, b=self.ny * base_len, c=c, alpha=90, beta=90, gamma=60
         )
         species, coords = [], []
 
         for idx, (mode, shift_label, z, theta, dx_val, dy_val) in enumerate(
-            zip(expanded_modes, expanded_shifts, expanded_zs, expanded_angles, expanded_dxs, expanded_dys)
+            zip(
+                expanded_modes,
+                expanded_shifts,
+                expanded_zs,
+                expanded_angles,
+                expanded_dxs,
+                expanded_dys,
+            )
         ):
             is_special_xo = False
             t_shift_label = None
             t_idx = -1
             if mode == "XO" and self.enable_t:
                 n_exp = len(expanded_modes)
-                if expanded_modes[(idx - 1) % n_exp] == "T" and expanded_modes[(idx - 2) % n_exp] == "XO3":
+                if (
+                    expanded_modes[(idx - 1) % n_exp] == "T"
+                    and expanded_modes[(idx - 2) % n_exp] == "XO3"
+                ):
                     is_special_xo, t_shift_label = True, expanded_shifts[(idx - 1) % n_exp]
                     t_idx = (idx - 1) % n_exp
-                elif expanded_modes[(idx + 1) % n_exp] == "T" and expanded_modes[(idx + 2) % n_exp] == "XO3":
+                elif (
+                    expanded_modes[(idx + 1) % n_exp] == "T"
+                    and expanded_modes[(idx + 2) % n_exp] == "XO3"
+                ):
                     is_special_xo, t_shift_label = True, expanded_shifts[(idx + 1) % n_exp]
                     t_idx = (idx + 1) % n_exp
 
@@ -775,69 +882,90 @@ class LayeredXOGenerator:
             rel_t_shift_vec = None
 
             if is_special_xo and t_shift_label:
-                t_sites_for_grid = list(self.get_layer_sites(
-                    "T", "A", base_len=base_len,
-                    layer_modes=expanded_modes, layer_angles=expanded_angles, current_idx=t_idx
-                ))
+                t_sites_for_grid = list(
+                    self.get_layer_sites(
+                        "T",
+                        "A",
+                        base_len=base_len,
+                        layer_modes=expanded_modes,
+                        layer_angles=expanded_angles,
+                        current_idx=t_idx,
+                    )
+                )
                 t_abs_shift = self.build_total_shift_vec_from_sites(
-                    t_sites_for_grid, t_shift_label, expanded_dxs[t_idx], expanded_dys[t_idx],
-                    mode="T", layer_modes=expanded_modes, current_idx=t_idx
+                    t_sites_for_grid,
+                    t_shift_label,
+                    expanded_dxs[t_idx],
+                    expanded_dys[t_idx],
+                    mode="T",
+                    layer_modes=expanded_modes,
+                    current_idx=t_idx,
                 )
 
                 xo_raw_x, xo_raw_o = self.get_layer_sites(
-                    "XO", "A",
+                    "XO",
+                    "A",
                     is_special_xo=False,
                     t_shift_vec=None,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
                 xo_sites_for_grid = list(xo_raw_x)
                 if len(xo_sites_for_grid) == 0:
                     xo_sites_for_grid = list(xo_raw_x) + list(xo_raw_o)
                 xo_abs_shift = self.build_total_shift_vec_from_sites(
-                    xo_sites_for_grid, shift_label, dx_val, dy_val,
-                    mode="XO", layer_modes=expanded_modes, current_idx=idx
+                    xo_sites_for_grid,
+                    shift_label,
+                    dx_val,
+                    dy_val,
+                    mode="XO",
+                    layer_modes=expanded_modes,
+                    current_idx=idx,
                 )
                 rel_t_shift_vec = t_abs_shift - xo_abs_shift
 
             if mode in ["X", "XBO3", "BO3", "XB3O6"]:
                 x_bp, b_bp, o_bp = self.get_layer_sites(
-                    mode, "A",
+                    mode,
+                    "A",
                     flip_b_site=flip_b_site,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
                 x_sites, b_sites, o_sites = x_bp, b_bp, o_bp
             elif self.is_m_layer(mode):
                 m_sites = self.get_layer_sites(
-                    mode, "A",
+                    mode,
+                    "A",
                     lattice=lattice,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
             elif mode == "T":
                 t_sites = self.get_layer_sites(
-                    "T", "A",
+                    "T",
+                    "A",
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
             else:
                 x_bp, o_bp = self.get_layer_sites(
-                    mode, "A",
+                    mode,
+                    "A",
                     is_special_xo=is_special_xo,
                     t_shift_vec=rel_t_shift_vec,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
                 x_sites, o_sites = x_bp, o_bp
 
@@ -850,16 +978,25 @@ class LayeredXOGenerator:
 
             grid_sites = self.get_reference_grid_sites_for_layer(
                 mode,
-                x_sites, b_sites, o_sites, m_sites, t_sites,
+                x_sites,
+                b_sites,
+                o_sites,
+                m_sites,
+                t_sites,
                 layer_modes=expanded_modes,
                 layer_angles=expanded_angles,
                 current_idx=idx,
-                base_len=base_len
+                base_len=base_len,
             )
 
             target_shift_vec = self.build_total_shift_vec_from_sites(
-                grid_sites, shift_label, dx_val, dy_val,
-                mode=mode, layer_modes=expanded_modes, current_idx=idx
+                grid_sites,
+                shift_label,
+                dx_val,
+                dy_val,
+                mode=mode,
+                layer_modes=expanded_modes,
+                current_idx=idx,
             )
 
             x_sites = self.apply_translation(x_sites, target_shift_vec)
@@ -884,11 +1021,28 @@ class LayeredXOGenerator:
                 species.append(self.t_element)
                 coords.append((fx, fy, z))
 
-        structure = Structure(lattice=lattice, species=species, coords=coords, coords_are_cartesian=False, to_unit_cell=True)
+        structure = Structure(
+            lattice=lattice,
+            species=species,
+            coords=coords,
+            coords_are_cartesian=False,
+            to_unit_cell=True,
+        )
         return (
-            structure, exact_flag, base_len, layer_modes, original_shifts, original_zs,
-            expanded_modes, expanded_shifts, expanded_zs, main_shift_sequence,
-            expanded_angles, expanded_dxs, expanded_dys, ref_mode
+            structure,
+            exact_flag,
+            base_len,
+            layer_modes,
+            original_shifts,
+            original_zs,
+            expanded_modes,
+            expanded_shifts,
+            expanded_zs,
+            main_shift_sequence,
+            expanded_angles,
+            expanded_dxs,
+            expanded_dys,
+            ref_mode,
         )
 
     def analyze_structure(self, structure):
@@ -899,15 +1053,35 @@ class LayeredXOGenerator:
             "t_count": sum(1 for s in structure if s.specie.symbol == self.t_element),
             "b_count": sum(1 for s in structure if s.specie.symbol == self.b_element),
             "formula": structure.composition.formula,
-            "a": structure.lattice.a, "b": structure.lattice.b, "c": structure.lattice.c,
-            "alpha": structure.lattice.alpha, "beta": structure.lattice.beta, "gamma": structure.lattice.gamma
+            "a": structure.lattice.a,
+            "b": structure.lattice.b,
+            "c": structure.lattice.c,
+            "alpha": structure.lattice.alpha,
+            "beta": structure.lattice.beta,
+            "gamma": structure.lattice.gamma,
         }
 
-    def get_layer_atoms_for_plot(self, expanded_modes, expanded_shifts, expanded_zs,
-                                 expanded_angles, expanded_dxs, expanded_dys, base_len, lattice):
+    def get_layer_atoms_for_plot(
+        self,
+        expanded_modes,
+        expanded_shifts,
+        expanded_zs,
+        expanded_angles,
+        expanded_dxs,
+        expanded_dys,
+        base_len,
+        lattice,
+    ):
         layer_data = []
         for idx, (mode, shift_label, z, theta, dx_val, dy_val) in enumerate(
-            zip(expanded_modes, expanded_shifts, expanded_zs, expanded_angles, expanded_dxs, expanded_dys)
+            zip(
+                expanded_modes,
+                expanded_shifts,
+                expanded_zs,
+                expanded_angles,
+                expanded_dxs,
+                expanded_dys,
+            )
         ):
             atoms = []
             is_special_xo = False
@@ -915,10 +1089,16 @@ class LayeredXOGenerator:
             t_idx = -1
             if mode == "XO" and self.enable_t:
                 n_exp = len(expanded_modes)
-                if expanded_modes[(idx - 1) % n_exp] == "T" and expanded_modes[(idx - 2) % n_exp] == "XO3":
+                if (
+                    expanded_modes[(idx - 1) % n_exp] == "T"
+                    and expanded_modes[(idx - 2) % n_exp] == "XO3"
+                ):
                     is_special_xo, t_shift_label = True, expanded_shifts[(idx - 1) % n_exp]
                     t_idx = (idx - 1) % n_exp
-                elif expanded_modes[(idx + 1) % n_exp] == "T" and expanded_modes[(idx + 2) % n_exp] == "XO3":
+                elif (
+                    expanded_modes[(idx + 1) % n_exp] == "T"
+                    and expanded_modes[(idx + 2) % n_exp] == "XO3"
+                ):
                     is_special_xo, t_shift_label = True, expanded_shifts[(idx + 1) % n_exp]
                     t_idx = (idx + 1) % n_exp
 
@@ -927,70 +1107,91 @@ class LayeredXOGenerator:
             x_sites, b_sites, o_sites, m_sites, t_sites = [], [], [], [], []
             rel_t_shift_vec = None
             if is_special_xo and t_shift_label:
-                t_sites_for_grid = list(self.get_layer_sites(
-                    "T", "A", base_len=base_len,
-                    layer_modes=expanded_modes, layer_angles=expanded_angles, current_idx=t_idx
-                ))
+                t_sites_for_grid = list(
+                    self.get_layer_sites(
+                        "T",
+                        "A",
+                        base_len=base_len,
+                        layer_modes=expanded_modes,
+                        layer_angles=expanded_angles,
+                        current_idx=t_idx,
+                    )
+                )
                 t_abs_shift = self.build_total_shift_vec_from_sites(
-                    t_sites_for_grid, t_shift_label, expanded_dxs[t_idx], expanded_dys[t_idx],
-                    mode="T", layer_modes=expanded_modes, current_idx=t_idx
+                    t_sites_for_grid,
+                    t_shift_label,
+                    expanded_dxs[t_idx],
+                    expanded_dys[t_idx],
+                    mode="T",
+                    layer_modes=expanded_modes,
+                    current_idx=t_idx,
                 )
 
                 xo_raw_x, xo_raw_o = self.get_layer_sites(
-                    "XO", "A",
+                    "XO",
+                    "A",
                     is_special_xo=False,
                     t_shift_vec=None,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
                 xo_sites_for_grid = list(xo_raw_x)
                 if len(xo_sites_for_grid) == 0:
                     xo_sites_for_grid = list(xo_raw_x) + list(xo_raw_o)
                 xo_abs_shift = self.build_total_shift_vec_from_sites(
-                    xo_sites_for_grid, shift_label, dx_val, dy_val,
-                    mode="XO", layer_modes=expanded_modes, current_idx=idx
+                    xo_sites_for_grid,
+                    shift_label,
+                    dx_val,
+                    dy_val,
+                    mode="XO",
+                    layer_modes=expanded_modes,
+                    current_idx=idx,
                 )
 
                 rel_t_shift_vec = t_abs_shift - xo_abs_shift
 
             if mode in ["X", "XBO3", "BO3", "XB3O6"]:
                 x_bp, b_bp, o_bp = self.get_layer_sites(
-                    mode, "A",
+                    mode,
+                    "A",
                     flip_b_site=flip_b_site,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
                 x_sites, b_sites, o_sites = x_bp, b_bp, o_bp
             elif self.is_m_layer(mode):
                 m_sites = self.get_layer_sites(
-                    mode, "A",
+                    mode,
+                    "A",
                     lattice=lattice,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
             elif mode == "T":
                 t_sites = self.get_layer_sites(
-                    "T", "A",
+                    "T",
+                    "A",
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
             else:
                 x_bp, o_bp = self.get_layer_sites(
-                    mode, "A",
+                    mode,
+                    "A",
                     is_special_xo=is_special_xo,
                     t_shift_vec=rel_t_shift_vec,
                     base_len=base_len,
                     layer_modes=expanded_modes,
                     layer_angles=expanded_angles,
-                    current_idx=idx
+                    current_idx=idx,
                 )
                 x_sites, o_sites = x_bp, o_bp
 
@@ -1003,16 +1204,25 @@ class LayeredXOGenerator:
 
             grid_sites = self.get_reference_grid_sites_for_layer(
                 mode,
-                x_sites, b_sites, o_sites, m_sites, t_sites,
+                x_sites,
+                b_sites,
+                o_sites,
+                m_sites,
+                t_sites,
                 layer_modes=expanded_modes,
                 layer_angles=expanded_angles,
                 current_idx=idx,
-                base_len=base_len
+                base_len=base_len,
             )
 
             target_shift_vec = self.build_total_shift_vec_from_sites(
-                grid_sites, shift_label, dx_val, dy_val,
-                mode=mode, layer_modes=expanded_modes, current_idx=idx
+                grid_sites,
+                shift_label,
+                dx_val,
+                dy_val,
+                mode=mode,
+                layer_modes=expanded_modes,
+                current_idx=idx,
             )
 
             x_sites = self.apply_translation(x_sites, target_shift_vec)
@@ -1034,17 +1244,19 @@ class LayeredXOGenerator:
 
             gx, gy = self.infer_grid_from_sites(grid_sites)
 
-            layer_data.append({
-                "mode": mode,
-                "shift": shift_label,
-                "z": z,
-                "theta": theta,
-                "dx": dx_val,
-                "dy": dy_val,
-                "grid_x": gx,
-                "grid_y": gy,
-                "atoms": atoms
-            })
+            layer_data.append(
+                {
+                    "mode": mode,
+                    "shift": shift_label,
+                    "z": z,
+                    "theta": theta,
+                    "dx": dx_val,
+                    "dy": dy_val,
+                    "grid_x": gx,
+                    "grid_y": gy,
+                    "atoms": atoms,
+                }
+            )
         return layer_data
 
 
@@ -1093,7 +1305,9 @@ class XOApp:
 
         tk.Label(frm, text="X-O(Å):").grid(row=1, column=0, sticky="e")
         self.target_dist_var = tk.StringVar(value="2.77648")
-        tk.Entry(frm, textvariable=self.target_dist_var, width=6).grid(row=1, column=1, padx=1, sticky="w")
+        tk.Entry(frm, textvariable=self.target_dist_var, width=6).grid(
+            row=1, column=1, padx=1, sticky="w"
+        )
 
         tk.Label(frm, text="nx:").grid(row=1, column=2, sticky="e")
         self.nx_var = tk.StringVar(value="3")
@@ -1105,38 +1319,56 @@ class XOApp:
 
         cb_frame = tk.Frame(frm)
         cb_frame.grid(row=2, column=0, columnspan=10, sticky="w", pady=5)
-        tk.Checkbutton(cb_frame, text="启用 T 层", variable=self.enable_t_var, command=self.toggle_t_b).pack(side=tk.LEFT, padx=5)
-        tk.Checkbutton(cb_frame, text="启用 B 层系", variable=self.enable_b_var, command=self.toggle_t_b).pack(side=tk.LEFT, padx=15)
+        tk.Checkbutton(
+            cb_frame, text="启用 T 层", variable=self.enable_t_var, command=self.toggle_t_b
+        ).pack(side=tk.LEFT, padx=5)
+        tk.Checkbutton(
+            cb_frame, text="启用 B 层系", variable=self.enable_b_var, command=self.toggle_t_b
+        ).pack(side=tk.LEFT, padx=15)
 
         add_frame = tk.Frame(frm)
         add_frame.grid(row=3, column=0, columnspan=10, sticky="w", pady=2)
 
         tk.Label(add_frame, text="添加层:").pack(side=tk.LEFT)
         for m in ["XO", "XO2", "XO3", "M6", "M7"]:
-            tk.Button(add_frame, text=m, width=5, command=lambda mode=m: self.add_layer(mode)).pack(side=tk.LEFT, padx=2)
+            tk.Button(add_frame, text=m, width=5, command=lambda mode=m: self.add_layer(mode)).pack(
+                side=tk.LEFT, padx=2
+            )
 
         self.btn_x = tk.Button(add_frame, text="X", width=5, command=lambda: self.add_layer("X"))
         self.btn_x.pack(side=tk.LEFT, padx=2)
-        self.btn_xbo3 = tk.Button(add_frame, text="XBO3", width=5, command=lambda: self.add_layer("XBO3"))
+        self.btn_xbo3 = tk.Button(
+            add_frame, text="XBO3", width=5, command=lambda: self.add_layer("XBO3")
+        )
         self.btn_xbo3.pack(side=tk.LEFT, padx=2)
-        self.btn_bo3 = tk.Button(add_frame, text="BO3", width=5, command=lambda: self.add_layer("BO3"))
+        self.btn_bo3 = tk.Button(
+            add_frame, text="BO3", width=5, command=lambda: self.add_layer("BO3")
+        )
         self.btn_bo3.pack(side=tk.LEFT, padx=2)
-        self.btn_xb3o6 = tk.Button(add_frame, text="XB3O6", width=6, command=lambda: self.add_layer("XB3O6"))
+        self.btn_xb3o6 = tk.Button(
+            add_frame, text="XB3O6", width=6, command=lambda: self.add_layer("XB3O6")
+        )
         self.btn_xb3o6.pack(side=tk.LEFT, padx=2)
 
-        tk.Button(add_frame, text="清除", width=5, command=self.clear_layers).pack(side=tk.LEFT, padx=6)
+        tk.Button(add_frame, text="清除", width=5, command=self.clear_layers).pack(
+            side=tk.LEFT, padx=6
+        )
 
         tk.Label(frm, text="主层序列:").grid(row=4, column=0, columnspan=2, sticky="w", pady=5)
         self.layers_var = tk.StringVar(value="")
-        tk.Entry(frm, textvariable=self.layers_var, width=70).grid(row=4, column=2, columnspan=8, padx=2, sticky="w")
+        tk.Entry(frm, textvariable=self.layers_var, width=70).grid(
+            row=4, column=2, columnspan=8, padx=2, sticky="w"
+        )
 
         tk.Label(frm, text="主层堆叠序:").grid(row=5, column=0, columnspan=2, sticky="w")
         self.stack_var = tk.StringVar(value="ABC")
-        tk.Entry(frm, textvariable=self.stack_var, width=20).grid(row=5, column=2, columnspan=3, padx=2, sticky="w")
-
-        tk.Checkbutton(frm, text="允许输出非电中性原胞", variable=self.allow_non_neutral_var, fg="darkred").grid(
-            row=6, column=0, columnspan=6, sticky="w", pady=3
+        tk.Entry(frm, textvariable=self.stack_var, width=20).grid(
+            row=5, column=2, columnspan=3, padx=2, sticky="w"
         )
+
+        tk.Checkbutton(
+            frm, text="允许输出非电中性原胞", variable=self.allow_non_neutral_var, fg="darkred"
+        ).grid(row=6, column=0, columnspan=6, sticky="w", pady=3)
         desc_text = (
             "说明：\n"
             "1. 平移参数 (angle:dx:dy) 中的 dx, dy 不再预先绑定固定网格。\n"
@@ -1149,7 +1381,9 @@ class XOApp:
             "8. M层的堆叠标签由上下两层主层堆叠方式唯一确定：AB→C，BC→A，AC→B；若两侧相同则保持相同。\n"
             "9. 已取消翻转判定，XBO3/BO3 层固定默认 B 位。"
         )
-        tk.Label(frm, text=desc_text, fg="blue", justify=tk.LEFT).grid(row=7, column=0, columnspan=10, sticky="w")
+        tk.Label(frm, text=desc_text, fg="blue", justify=tk.LEFT).grid(
+            row=7, column=0, columnspan=10, sticky="w"
+        )
 
     def toggle_t_b(self):
         state_t = tk.NORMAL if self.enable_t_var.get() else tk.DISABLED
@@ -1182,17 +1416,31 @@ class XOApp:
         frm = tk.Frame(self.root)
         frm.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
 
-        ttk.Button(frm, text="1. 生成超胞结构", command=self.generate_structure).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
-        ttk.Button(frm, text="2. 保存超胞 CIF", command=self.save_cif).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
-        ttk.Button(frm, text="3. 对称性分析与原胞导出", command=self.analyze_and_export_primitive).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
-        ttk.Button(frm, text="4. 导出二维绘图", command=self.export_plot_2d).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
-        ttk.Button(frm, text="5. 导出原型档案", command=self.export_to_prototype_db).pack(side=tk.LEFT, expand=True,                                                                                      fill=tk.X, padx=4)
-        ttk.Button(frm, text="6. X位点配位环境分析", command=self.analyze_x_coordination).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
-        ttk.Button(frm, text="退出", command=self.root.destroy).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
+        ttk.Button(frm, text="1. 生成超胞结构", command=self.generate_structure).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=4
+        )
+        ttk.Button(frm, text="2. 保存超胞 CIF", command=self.save_cif).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=4
+        )
+        ttk.Button(
+            frm, text="3. 对称性分析与原胞导出", command=self.analyze_and_export_primitive
+        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=4)
+        ttk.Button(frm, text="4. 导出二维绘图", command=self.export_plot_2d).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=4
+        )
+        ttk.Button(frm, text="5. 导出原型档案", command=self.export_to_prototype_db).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=4
+        )
+        ttk.Button(frm, text="6. X位点配位环境分析", command=self.analyze_x_coordination).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=4
+        )
+        ttk.Button(frm, text="退出", command=self.root.destroy).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=4
+        )
 
     def update_output(self, message):
         # 1. 如果当前正在显示 3D 画布，先将其隐藏
-        if hasattr(self, 'canvas_widget') and self.canvas_widget is not None:
+        if hasattr(self, "canvas_widget") and self.canvas_widget is not None:
             self.canvas_widget.pack_forget()
         # 2. 确保白色文本框处于显示状态
         if not self.text_box.winfo_ismapped():
@@ -1235,7 +1483,7 @@ class XOApp:
             if "(" in m_raw and m_raw.endswith(")"):
                 idx = m_raw.index("(")
                 m = m_raw[:idx].upper().strip()
-                param_str = m_raw[idx + 1:-1]
+                param_str = m_raw[idx + 1 : -1]
                 parts = param_str.split(":")
                 if len(parts) > 0 and parts[0].strip():
                     angle = parse_number_or_fraction(parts[0])
@@ -1264,7 +1512,9 @@ class XOApp:
 
     def generate_structure(self):
         try:
-            layer_modes, layer_alphas, layer_angles, layer_dxs, layer_dys = self.parse_layer_modes(self.layers_var.get())
+            layer_modes, layer_alphas, layer_angles, layer_dxs, layer_dys = self.parse_layer_modes(
+                self.layers_var.get()
+            )
 
             gen = LayeredXOGenerator(
                 x_element=self.x_var.get().strip(),
@@ -1275,12 +1525,16 @@ class XOApp:
                 target_xo_distance=float(self.target_dist_var.get()),
                 nx=int(self.nx_var.get()),
                 ny=int(self.ny_var.get()),
-                enable_t=self.enable_t_var.get()
+                enable_t=self.enable_t_var.get(),
             )
 
             result = gen.build_structure(
-                layer_modes, layer_alphas, self.stack_var.get().strip(),
-                layer_angles, layer_dxs, layer_dys
+                layer_modes,
+                layer_alphas,
+                self.stack_var.get().strip(),
+                layer_angles,
+                layer_dxs,
+                layer_dys,
             )
 
             self.structure = result[0]
@@ -1296,11 +1550,20 @@ class XOApp:
             ref_mode = result[13]
 
             layer_data = gen.get_layer_atoms_for_plot(
-                result[6], result[7], result[8], result[10], result[11], result[12], result[2], result[0].lattice
+                result[6],
+                result[7],
+                result[8],
+                result[10],
+                result[11],
+                result[12],
+                result[2],
+                result[0].lattice,
             )
 
             display_seq = []
-            for i, (m, ang, dx, dy) in enumerate(zip(expanded_modes, expanded_angles, expanded_dxs, expanded_dys)):
+            for i, (m, ang, dx, dy) in enumerate(
+                zip(expanded_modes, expanded_angles, expanded_dxs, expanded_dys)
+            ):
                 gx = layer_data[i]["grid_x"]
                 gy = layer_data[i]["grid_y"]
                 if ang != 0.0 or dx != 0.0 or dy != 0.0:
@@ -1339,7 +1602,7 @@ class XOApp:
                 f"宏观标度锚定规则: {lattice_msg}",
                 f"超胞绝对参数: a={info['a']:.5f}Å, b={info['b']:.5f}Å, c={info['c']:.5f}Å",
                 "-" * 60,
-                prim_info
+                prim_info,
             ]
             self.update_output("\n".join(msg))
 
@@ -1349,7 +1612,9 @@ class XOApp:
     def save_cif(self):
         if self.structure is None:
             return
-        filename = fd.asksaveasfilename(title="保存超胞 CIF", defaultextension=".cif", initialfile="supercell.cif")
+        filename = fd.asksaveasfilename(
+            title="保存超胞 CIF", defaultextension=".cif", initialfile="supercell.cif"
+        )
         if filename:
             CifWriter(self.structure).write_file(filename)
             messagebox.showinfo("成功", f"CIF 已保存至：\n{filename}")
@@ -1373,7 +1638,7 @@ class XOApp:
             filename = fd.asksaveasfilename(
                 title="保存标准原胞 CIF",
                 defaultextension=".cif",
-                initialfile=f"primitive_{reduced_formula}.cif"
+                initialfile=f"primitive_{reduced_formula}.cif",
             )
             if not filename:
                 return
@@ -1410,14 +1675,23 @@ class XOApp:
     def export_plot_2d(self):
         if self.structure is None or not hasattr(self, "_last_build"):
             return
-        filename = fd.asksaveasfilename(title="保存二维层投影", defaultextension=".png", initialfile="layers.png")
+        filename = fd.asksaveasfilename(
+            title="保存二维层投影", defaultextension=".png", initialfile="layers.png"
+        )
         if not filename:
             return
         try:
             gen, result = self._last_build["gen"], self._last_build["result"]
 
             layer_data = gen.get_layer_atoms_for_plot(
-                result[6], result[7], result[8], result[10], result[11], result[12], result[2], result[0].lattice
+                result[6],
+                result[7],
+                result[8],
+                result[10],
+                result[11],
+                result[12],
+                result[2],
+                result[0].lattice,
             )
 
             n_layers = len(layer_data)
@@ -1431,14 +1705,14 @@ class XOApp:
                 self.o_var.get().strip(): "red",
                 self.m_var.get().strip(): "purple",
                 self.t_var.get().strip(): "blue",
-                self.b_var.get().strip(): "green"
+                self.b_var.get().strip(): "green",
             }
             size_map = {
                 self.x_var.get().strip(): 150,
                 self.o_var.get().strip(): 50,
                 self.m_var.get().strip(): 80,
                 self.t_var.get().strip(): 80,
-                self.b_var.get().strip(): 50
+                self.b_var.get().strip(): 50,
             }
 
             for idx, layer in enumerate(layer_data):
@@ -1447,20 +1721,21 @@ class XOApp:
                     for dx in [-1, 0, 1]:
                         for dy in [-1, 0, 1]:
                             ax.scatter(
-                                fx + dx, fy + dy,
+                                fx + dx,
+                                fy + dy,
                                 s=size_map.get(elem, 70),
                                 c=color_map.get(elem, "black"),
                                 edgecolors="black",
                                 linewidths=0.5,
-                                alpha=0.85
+                                alpha=0.85,
                             )
 
                 title = f"Layer {idx+1}: {layer['mode']} "
-                if layer['theta'] != 0.0 or layer['dx'] != 0.0 or layer['dy'] != 0.0:
+                if layer["theta"] != 0.0 or layer["dx"] != 0.0 or layer["dy"] != 0.0:
                     title += f"({layer['theta']}° : {layer['dx']} : {layer['dy']}) "
                 title += f"| auto-grid={layer['grid_x']}x{layer['grid_y']} | z={layer['z']:.4f}"
 
-                ax.set_title(title, fontsize=12, fontweight='bold')
+                ax.set_title(title, fontsize=12, fontweight="bold")
                 ax.set_aspect("equal")
                 ax.set_xlim(-0.2, 1.2)
                 ax.set_ylim(-0.2, 1.2)
@@ -1518,23 +1793,23 @@ class XOApp:
                     "input_main_shifts": main_shift_sequence,
                     "expanded_modes": expanded_modes,
                     "expanded_shifts": expanded_shifts,
-                    "reference_grid": ref_grid
+                    "reference_grid": ref_grid,
                 },
                 "prototype_crystallography": {
                     "ideal_space_group": sga.get_space_group_symbol(),
                     "space_group_number": sga.get_space_group_number(),
                     "crystal_system": sga.get_crystal_system(),
                     "is_neutral": len(self.structure.composition.oxi_state_guesses()) > 0,
-                    "wyckoff_signature": {k: ", ".join(sorted(v)) for k, v in wyckoff_sig.items()}
+                    "wyckoff_signature": {k: ", ".join(sorted(v)) for k, v in wyckoff_sig.items()},
                 },
-                "real_compounds": []
+                "real_compounds": [],
             }
 
             # 4. 弹窗保存
             filename = fd.asksaveasfilename(
                 title="保存原型数据库档案",
                 defaultextension=".json",
-                initialfile=f"Proto_{prototype_id}.json"
+                initialfile=f"Proto_{prototype_id}.json",
             )
 
             if filename:
@@ -1564,6 +1839,7 @@ class XOApp:
         """分析堆垛结构中 X 位点周围的 O 配位环境，并在下方的白色框中直接显示三维可交互模型(支持鼠标悬停显距)"""
         if self.structure is None:
             import tkinter.messagebox as messagebox
+
             messagebox.showwarning("提示", "请先生成结构！")
             return
 
@@ -1576,8 +1852,13 @@ class XOApp:
             import numpy as np
             import tkinter as tk
 
-            plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'PingFang SC', 'Heiti TC', 'SimHei']
-            plt.rcParams['axes.unicode_minus'] = False
+            plt.rcParams["font.sans-serif"] = [
+                "Arial Unicode MS",
+                "PingFang SC",
+                "Heiti TC",
+                "SimHei",
+            ]
+            plt.rcParams["axes.unicode_minus"] = False
 
             x_elem = self.x_var.get().strip()
             o_elem = self.o_var.get().strip()
@@ -1605,8 +1886,7 @@ class XOApp:
             unique_cns = sorted(list(env_dict.keys()))
             num_plots = len(unique_cns)
 
-            fig = Figure(figsize=(6 * num_plots, 6), dpi=100, facecolor='#F5F5F7')
-
+            fig = Figure(figsize=(6 * num_plots, 6), dpi=100, facecolor="#F5F5F7")
 
             # 用于存储每个子图的交互数据
             interactive_data = []
@@ -1614,11 +1894,21 @@ class XOApp:
             for idx, cn in enumerate(unique_cns):
                 center_site, o_neighbors = env_dict[cn]
 
-                ax = fig.add_subplot(1, num_plots, idx + 1, projection='3d')
-                ax.set_facecolor('#F5F5F7')
+                ax = fig.add_subplot(1, num_plots, idx + 1, projection="3d")
+                ax.set_facecolor("#F5F5F7")
 
-                ax.scatter([0], [0], [0], color='#9400D3', s=600, label=f'{x_elem} (中心)',
-                           edgecolors='white', linewidths=2, zorder=5, depthshade=True)
+                ax.scatter(
+                    [0],
+                    [0],
+                    [0],
+                    color="#9400D3",
+                    s=600,
+                    label=f"{x_elem} (中心)",
+                    edgecolors="white",
+                    linewidths=2,
+                    zorder=5,
+                    depthshade=True,
+                )
 
                 ox, oy, oz, lengths = [], [], [], []
                 for nn in o_neighbors:
@@ -1631,37 +1921,76 @@ class XOApp:
                     # 计算该键的真实物理长度
                     lengths.append(np.linalg.norm([dx, dy, dz]))
 
-                    ax.plot([0, dx], [0, dy], [0, dz], color='#B0C4DE', linestyle='-', linewidth=3.5, alpha=0.8,
-                            zorder=1)
+                    ax.plot(
+                        [0, dx],
+                        [0, dy],
+                        [0, dz],
+                        color="#B0C4DE",
+                        linestyle="-",
+                        linewidth=3.5,
+                        alpha=0.8,
+                        zorder=1,
+                    )
 
                 # 绘制氧原子，并保存 scatter 对象以便后续捕捉鼠标事件
-                sc = ax.scatter(ox, oy, oz, color='#FF4500', s=250, label=f'O (CN={cn})',
-                                edgecolors='white', linewidths=1.5, zorder=6, depthshade=True)
+                sc = ax.scatter(
+                    ox,
+                    oy,
+                    oz,
+                    color="#FF4500",
+                    s=250,
+                    label=f"O (CN={cn})",
+                    edgecolors="white",
+                    linewidths=1.5,
+                    zorder=6,
+                    depthshade=True,
+                )
 
                 points = np.column_stack((ox, oy, oz))
                 if len(points) >= 4:
                     try:
                         hull = ConvexHull(points)
                         faces = [points[simplex] for simplex in hull.simplices]
-                        poly3d = Poly3DCollection(faces, facecolors='#00CED1', linewidths=1.5,
-                                                  edgecolors='#008B8B', alpha=0.25, zorder=2)
+                        poly3d = Poly3DCollection(
+                            faces,
+                            facecolors="#00CED1",
+                            linewidths=1.5,
+                            edgecolors="#008B8B",
+                            alpha=0.25,
+                            zorder=2,
+                        )
                         ax.add_collection3d(poly3d)
                     except Exception as e:
                         pass
 
-                ax.set_title(f"{x_elem} 原子的 {cn} 配位环境", fontsize=16, fontweight='bold', pad=10, color='#333333')
-                ax.legend(loc='lower right', fontsize=11, framealpha=0.8, edgecolor='#DDDDDD')
+                ax.set_title(
+                    f"{x_elem} 原子的 {cn} 配位环境",
+                    fontsize=16,
+                    fontweight="bold",
+                    pad=10,
+                    color="#333333",
+                )
+                ax.legend(loc="lower right", fontsize=11, framealpha=0.8, edgecolor="#DDDDDD")
 
                 # 创建一个隐藏的文本框，用于悬停时显示键长 (放在左上角)
-                hover_text = ax.text2D(0.05, 0.95, "", transform=ax.transAxes, fontsize=13, color='darkred',
-                                       fontweight='bold',
-                                       bbox=dict(boxstyle="round,pad=0.3", fc="#FFFFE0", ec="#FFD700", alpha=0.9),
-                                       zorder=10)
+                hover_text = ax.text2D(
+                    0.05,
+                    0.95,
+                    "",
+                    transform=ax.transAxes,
+                    fontsize=13,
+                    color="darkred",
+                    fontweight="bold",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="#FFFFE0", ec="#FFD700", alpha=0.9),
+                    zorder=10,
+                )
 
                 # 设置真实比例
                 ax.set_box_aspect([1, 1, 1])
 
-                max_range = np.array([max(ox) - min(ox), max(oy) - min(oy), max(oz) - min(oz)]).max() / 2.0
+                max_range = (
+                    np.array([max(ox) - min(ox), max(oy) - min(oy), max(oz) - min(oz)]).max() / 2.0
+                )
                 mid_x = (max(ox) + min(ox)) * 0.5
                 mid_y = (max(oy) + min(oy)) * 0.5
                 mid_z = (max(oz) + min(oz)) * 0.5
@@ -1670,11 +1999,13 @@ class XOApp:
                 ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
                 # 记录该子图的交互信息
-                interactive_data.append({'ax': ax, 'sc': sc, 'lengths': lengths, 'hover_text': hover_text})
+                interactive_data.append(
+                    {"ax": ax, "sc": sc, "lengths": lengths, "hover_text": hover_text}
+                )
 
             self.text_box.pack_forget()
 
-            if hasattr(self, 'canvas_widget') and self.canvas_widget is not None:
+            if hasattr(self, "canvas_widget") and self.canvas_widget is not None:
                 self.canvas_widget.destroy()
 
             parent_frame = self.text_box.master
@@ -1689,20 +2020,20 @@ class XOApp:
                 changed = False
                 for data in interactive_data:
                     # 检查鼠标是否在这个子图内
-                    if event.inaxes == data['ax']:
+                    if event.inaxes == data["ax"]:
                         # 检查鼠标是否碰到了某个氧原子
-                        cont, ind = data['sc'].contains(event)
+                        cont, ind = data["sc"].contains(event)
                         if cont:
                             # 获取被碰到的原子索引
                             idx = ind["ind"][0]
-                            bond_len = data['lengths'][idx]
+                            bond_len = data["lengths"][idx]
                             # 更新提示框文本
-                            data['hover_text'].set_text(f"🎯 选定键长: {bond_len:.4f} Å")
+                            data["hover_text"].set_text(f"🎯 选定键长: {bond_len:.4f} Å")
                             changed = True
                         else:
                             # 鼠标移开时清空提示框
-                            if data['hover_text'].get_text() != "":
-                                data['hover_text'].set_text("")
+                            if data["hover_text"].get_text() != "":
+                                data["hover_text"].set_text("")
                                 changed = True
 
                 # 只有状态发生改变时才重新绘制，避免卡顿
@@ -1716,7 +2047,9 @@ class XOApp:
 
         except Exception as e:
             import tkinter.messagebox as messagebox
+
             messagebox.showerror("可视化错误", f"生成 3D 视图时发生异常:\n{e}")
+
 
 if __name__ == "__main__":
     XOApp()

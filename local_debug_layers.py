@@ -14,7 +14,7 @@ def main():
             print(p.name, "parse_failed")
             continue
         layers = sa.extract_layer_features(d) or []
-        nz = (d.get("atom_sites") or [])
+        nz = d.get("atom_sites") or []
         bad = 0
         for l in layers:
             r = l.get("x_to_o_ratio")

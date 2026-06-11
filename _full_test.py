@@ -3,7 +3,15 @@ import json
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=120)
@@ -11,6 +19,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 # Remove conflicting cgcpt site config (we use ai-website instead)
 code, r = run("rm -f /etc/nginx/sites-enabled/cgcpt")
@@ -32,7 +41,9 @@ print(f"Frontend: HTTP {r}")
 code, r = run("curl -s http://localhost/CGCPT/api/stats")
 try:
     data = json.loads(r)
-    print(f"API via nginx: total_materials={data.get('total_materials')}, unique_topologies={data.get('unique_topologies')}")
+    print(
+        f"API via nginx: total_materials={data.get('total_materials')}, unique_topologies={data.get('unique_topologies')}"
+    )
 except:
     print(f"API via nginx: FAILED - {r[:200]}")
 
@@ -85,17 +96,21 @@ print(f"\nAvailable models: {r}")
 code, r = run("curl -s http://localhost:5001/api/stacking/models")
 try:
     data = json.loads(r)
-    models = data.get('models', [])
+    models = data.get("models", [])
     if models:
-        model_id = models[0].get('model_id', '')
+        model_id = models[0].get("model_id", "")
         print(f"Using model: {model_id}")
 
         # Test prediction
         payload = json.dumps({"model_id": model_id, "cif_text": test_cif})
-        code, r2 = run(f"curl -s -X POST http://localhost:5001/api/stacking/predict -H 'Content-Type: application/json' -d '{payload}'")
+        code, r2 = run(
+            f"curl -s -X POST http://localhost:5001/api/stacking/predict -H 'Content-Type: application/json' -d '{payload}'"
+        )
         try:
             pred = json.loads(r2)
-            print(f"Prediction result: success={pred.get('success')}, topology={pred.get('predicted_topology')}, confidence={pred.get('confidence')}")
+            print(
+                f"Prediction result: success={pred.get('success')}, topology={pred.get('predicted_topology')}, confidence={pred.get('confidence')}"
+            )
         except:
             print(f"Prediction raw: {r2[:300]}")
     else:

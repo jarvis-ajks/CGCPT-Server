@@ -67,22 +67,43 @@ def main():
     print("Connected!")
 
     print("\n=== Step 1: System optimization (swap + limits) ===")
-    run(client, "swapon --show | grep -q cgcpt && echo 'swap exists' || (fallocate -l 2G /swapfile_cgcpt && chmod 600 /swapfile_cgcpt && mkswap /swapfile_cgcpt && swapon /swapfile_cgcpt && echo '/swapfile_cgcpt none swap sw 0 0' >> /etc/fstab && echo 'swap created')")
+    run(
+        client,
+        "swapon --show | grep -q cgcpt && echo 'swap exists' || (fallocate -l 2G /swapfile_cgcpt && chmod 600 /swapfile_cgcpt && mkswap /swapfile_cgcpt && swapon /swapfile_cgcpt && echo '/swapfile_cgcpt none swap sw 0 0' >> /etc/fstab && echo 'swap created')",
+    )
     run(client, "sysctl vm.swappiness=30")
     run(client, "sysctl vm.vfs_cache_pressure=50")
-    run(client, "grep -q 'vm.swappiness' /etc/sysctl.conf && sed -i 's/vm.swappiness=.*/vm.swappiness=30/' /etc/sysctl.conf || echo 'vm.swappiness=30' >> /etc/sysctl.conf")
-    run(client, "grep -q 'vm.vfs_cache_pressure' /etc/sysctl.conf && sed -i 's/vm.vfs_cache_pressure=.*/vm.vfs_cache_pressure=50/' /etc/sysctl.conf || echo 'vm.vfs_cache_pressure=50' >> /etc/sysctl.conf")
+    run(
+        client,
+        "grep -q 'vm.swappiness' /etc/sysctl.conf && sed -i 's/vm.swappiness=.*/vm.swappiness=30/' /etc/sysctl.conf || echo 'vm.swappiness=30' >> /etc/sysctl.conf",
+    )
+    run(
+        client,
+        "grep -q 'vm.vfs_cache_pressure' /etc/sysctl.conf && sed -i 's/vm.vfs_cache_pressure=.*/vm.vfs_cache_pressure=50/' /etc/sysctl.conf || echo 'vm.vfs_cache_pressure=50' >> /etc/sysctl.conf",
+    )
     run(client, "free -h")
 
     print("\n=== Step 2: Install Python + pip ===")
-    run(client, "which python3 || (apt-get update -qq && apt-get install -y -qq python3 python3-pip python3-venv)", timeout=600)
+    run(
+        client,
+        "which python3 || (apt-get update -qq && apt-get install -y -qq python3 python3-pip python3-venv)",
+        timeout=600,
+    )
     run(client, "python3 --version")
 
     print("\n=== Step 3: Create venv + install deps ===")
     run(client, f"mkdir -p {REMOTE}")
     run(client, f"test -d {REMOTE}/venv || python3 -m venv {REMOTE}/venv")
-    run(client, f"{REMOTE}/venv/bin/pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com", timeout=120)
-    run(client, f"{REMOTE}/venv/bin/pip install flask flask-cors gunicorn gevent numpy scikit-learn pymatgen -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com", timeout=600)
+    run(
+        client,
+        f"{REMOTE}/venv/bin/pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com",
+        timeout=120,
+    )
+    run(
+        client,
+        f"{REMOTE}/venv/bin/pip install flask flask-cors gunicorn gevent numpy scikit-learn pymatgen -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com",
+        timeout=600,
+    )
 
     print("\n=== Step 4: Deploy backend code ===")
     backend_files = [
@@ -157,7 +178,9 @@ WantedBy=multi-user.target
 """
     with open(os.path.join(local_base, "_cgcpt.service"), "w") as f:
         f.write(service_content)
-    upload_file(sftp, os.path.join(local_base, "_cgcpt.service"), "/etc/systemd/system/cgcpt.service")
+    upload_file(
+        sftp, os.path.join(local_base, "_cgcpt.service"), "/etc/systemd/system/cgcpt.service"
+    )
     run(client, "systemctl daemon-reload")
     run(client, "systemctl enable cgcpt")
 

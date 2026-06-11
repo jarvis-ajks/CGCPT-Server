@@ -95,6 +95,7 @@ class PluginContext:
     def get_db(self):
         if self._db is None:
             from models import SessionLocal
+
             self._db = SessionLocal()
         return self._db
 
@@ -106,7 +107,9 @@ class PluginContext:
     def update_progress(self, progress: float, message: str = ""):
         if self._progress_cb:
             self._progress_cb({"progress": progress, "message": message})
-        self._logs.append(f"[{datetime.utcnow().isoformat()}] progress={progress:.2f} msg={message}")
+        self._logs.append(
+            f"[{datetime.utcnow().isoformat()}] progress={progress:.2f} msg={message}"
+        )
 
     def log(self, message: str):
         self._logs.append(f"[{datetime.utcnow().isoformat()}] {message}")
@@ -129,6 +132,7 @@ class PluginContext:
         db = self.get_db()
         try:
             from models import Material
+
             existing = db.query(Material).filter_by(id=material_id).first()
             if existing:
                 self.log(f"材料 {material_id} 已存在，跳过")
@@ -173,6 +177,7 @@ class PluginContext:
         db = self.get_db()
         try:
             from models import ModelArtifact
+
             existing = db.query(ModelArtifact).filter_by(id=model_id).first()
             if existing:
                 self.log(f"模型产物 {model_id} 已存在")
@@ -197,10 +202,13 @@ class PluginContext:
             self.log(f"保存模型产物失败: {e}")
             return False
 
-    def query_materials(self, topology_id: Optional[str] = None, formula: Optional[str] = None, limit: int = 100) -> List[Dict]:
+    def query_materials(
+        self, topology_id: Optional[str] = None, formula: Optional[str] = None, limit: int = 100
+    ) -> List[Dict]:
         db = self.get_db()
         try:
             from models import Material
+
             query = db.query(Material)
             if topology_id:
                 query = query.filter_by(topology_id=topology_id)
@@ -227,6 +235,7 @@ class PluginContext:
         db = self.get_db()
         try:
             from models import Prototype
+
             query = db.query(Prototype)
             if crystal_system:
                 query = query.filter_by(crystal_system=crystal_system)
@@ -328,7 +337,12 @@ class CGCPTPlugin(ABC):
             "default_config": self.default_config,
         }
 
-    def run(self, input_data: Dict[str, Any], task_id: str = "", progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
+    def run(
+        self,
+        input_data: Dict[str, Any],
+        task_id: str = "",
+        progress_callback: Optional[Callable] = None,
+    ) -> Dict[str, Any]:
         ctx = PluginContext(
             input_data=input_data,
             task_id=task_id,
@@ -382,6 +396,7 @@ def cgcpt_algorithm(
             def execute(self, ctx):
                 ...
     """
+
     def decorator(cls: Type[CGCPTPlugin]) -> Type[CGCPTPlugin]:
         cls.algorithm_id = id
         cls.algorithm_name = name
@@ -408,6 +423,7 @@ def cgcpt_algorithm(
         }
 
         return cls
+
     return decorator
 
 
@@ -482,7 +498,15 @@ def validate_plugin_class(cls: Type[CGCPTPlugin]) -> List[str]:
     if not cls.algorithm_type:
         errors.append("algorithm_type 不能为空")
 
-    valid_types = {"training", "prediction", "generation", "validation", "verification", "import", "general"}
+    valid_types = {
+        "training",
+        "prediction",
+        "generation",
+        "validation",
+        "verification",
+        "import",
+        "general",
+    }
     if cls.algorithm_type not in valid_types:
         errors.append(f"algorithm_type '{cls.algorithm_type}' 不合法，可选: {valid_types}")
 

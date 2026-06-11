@@ -47,7 +47,7 @@ _psutil_mock = sys.modules.get("psutil")
 if _psutil_mock is not None:
     _mem_mock = MagicMock()
     _mem_mock.total = 16 * 1024 * 1024 * 1024  # 16 GB
-    _mem_mock.used = 8 * 1024 * 1024 * 1024   # 8 GB
+    _mem_mock.used = 8 * 1024 * 1024 * 1024  # 8 GB
     _mem_mock.percent = 50.0
     _psutil_mock.virtual_memory = MagicMock(return_value=_mem_mock)
 
@@ -103,11 +103,14 @@ def app():
             encoding="utf-8",
         )
 
-        with patch("api_server.DATABASE_DIR", proto_dir), \
-             patch("api_server.CFG_DATABASE_DIR", str(proto_dir)):
+        with (
+            patch("api_server.DATABASE_DIR", proto_dir),
+            patch("api_server.CFG_DATABASE_DIR", str(proto_dir)),
+        ):
             # Reset module-level indexes so they rebuild with our test dir
             from collections import defaultdict
             import api_server
+
             api_server._indexes_built = False
             api_server.prototypes_index = {}
             api_server.materials_index = {}
@@ -163,6 +166,7 @@ def mock_db():
 
     engine = create_engine("sqlite://", echo=False)
     import models
+
     # Re-bind the Base metadata to the in-memory engine
     models.Base.metadata.create_all(bind=engine)
     TestSession = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -179,4 +183,5 @@ def mock_db():
 def auth_token():
     """Return a valid base64 auth token for the test admin user."""
     import base64
+
     return base64.b64encode(b"admin:testpass").decode()

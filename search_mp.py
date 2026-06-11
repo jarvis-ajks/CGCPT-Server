@@ -14,7 +14,14 @@ def search_and_download_materials(api_key, target_formula, required_elements, ou
             results = mpr.materials.summary.search(
                 formula=target_formula,
                 exclude_elements=["H"],
-                fields=["material_id", "formula_pretty", "symmetry", "energy_above_hull", "elements", "structure"]
+                fields=[
+                    "material_id",
+                    "formula_pretty",
+                    "symmetry",
+                    "energy_above_hull",
+                    "elements",
+                    "structure",
+                ],
             )
 
             # 本地精筛阳离子

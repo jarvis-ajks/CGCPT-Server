@@ -2,18 +2,18 @@ import os, shutil, random
 from pathlib import Path
 from collections import Counter
 
-db = Path(r'd:\Projects\CGCPT-Server\database')
-output = Path(r'd:\Projects\CGCPT-Server\test_cifs')
+db = Path(r"d:\Projects\CGCPT-Server\database")
+output = Path(r"d:\Projects\CGCPT-Server\test_cifs")
 output.mkdir(exist_ok=True)
 
-for old in output.glob('*.cif'):
+for old in output.glob("*.cif"):
     old.unlink()
 
 topo_dirs = {}
 for d in db.iterdir():
-    if d.is_dir() and d.name.startswith('Raw_Proto_'):
-        label = d.name.replace('Raw_Proto_', '')
-        cifs = list(d.glob('*.cif'))
+    if d.is_dir() and d.name.startswith("Raw_Proto_"):
+        label = d.name.replace("Raw_Proto_", "")
+        cifs = list(d.glob("*.cif"))
         if len(cifs) >= 2:
             topo_dirs[label] = cifs
 

@@ -33,8 +33,8 @@ if os.path.exists(db_dir):
     if os.path.exists(dst):
         shutil.rmtree(dst)
     shutil.copytree(db_dir, dst)
-    n_cifs = sum(1 for _, _, files in os.walk(db_dir) for f in files if f.endswith('.cif'))
-    n_json = sum(1 for _, _, files in os.walk(db_dir) for f in files if f.endswith('.json'))
+    n_cifs = sum(1 for _, _, files in os.walk(db_dir) for f in files if f.endswith(".cif"))
+    n_json = sum(1 for _, _, files in os.walk(db_dir) for f in files if f.endswith(".json"))
     print(f"  Added: database/ ({n_cifs} CIFs, {n_json} JSONs)")
 else:
     print("  SKIP: database/ not found")
@@ -45,7 +45,7 @@ if os.path.exists(models_dir):
     if os.path.exists(dst):
         shutil.rmtree(dst)
     shutil.copytree(models_dir, dst)
-    n_models = len([f for f in os.listdir(models_dir) if f.endswith('.pkl')])
+    n_models = len([f for f in os.listdir(models_dir) if f.endswith(".pkl")])
     print(f"  Added: models/ ({n_models} models)")
 else:
     os.makedirs(os.path.join(pkg_dir, "models"), exist_ok=True)
@@ -79,7 +79,9 @@ print(f"\nPackage created: {tar_path} ({size_mb:.1f} MB)")
 print(f"\nTo deploy:")
 print(f"  1. Upload to server:  scp cgcpt_deploy.tar.gz root@118.31.164.41:/tmp/")
 print(f"  2. SSH into server:   ssh root@118.31.164.41")
-print(f"  3. Extract:           mkdir -p /opt/CGCPT && cd /opt && tar xzf /tmp/cgcpt_deploy.tar.gz && mv CGCPT/* CGCPT/.* CGCPT 2>/dev/null; rm -rf /opt/CGCPT/CGCPT")
+print(
+    f"  3. Extract:           mkdir -p /opt/CGCPT && cd /opt && tar xzf /tmp/cgcpt_deploy.tar.gz && mv CGCPT/* CGCPT/.* CGCPT 2>/dev/null; rm -rf /opt/CGCPT/CGCPT"
+)
 print(f"  4. Run setup:         cd /opt/CGCPT && bash setup_cloud.sh")
 
 shutil.rmtree(pkg_dir)

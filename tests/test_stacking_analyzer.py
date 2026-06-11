@@ -10,6 +10,7 @@ import stacking_analyzer as sa
 # parse_cif_text
 # ---------------------------------------------------------------------------
 
+
 class TestParseCifText:
     def test_parse_cif_text_no_pymatgen(self):
         """When pymatgen is not available, parse_cif_text returns None."""
@@ -62,6 +63,7 @@ class TestParseCifText:
 # extract_features
 # ---------------------------------------------------------------------------
 
+
 class TestExtractFeatures:
     def test_extract_features_none_input(self):
         assert sa.extract_features(None) is None
@@ -94,6 +96,7 @@ class TestExtractFeatures:
 # infer_grid
 # ---------------------------------------------------------------------------
 
+
 class TestInferGrid:
     def test_infer_grid_simple(self):
         """Test grid inference with simple integer fractional coords."""
@@ -118,6 +121,7 @@ class TestInferGrid:
 # ---------------------------------------------------------------------------
 # _group_atoms_by_axis
 # ---------------------------------------------------------------------------
+
 
 class TestGroupAtomsByAxis:
     def test_group_atoms_by_axis_basic(self):
@@ -153,6 +157,7 @@ class TestGroupAtomsByAxis:
 # Layer type classification
 # ---------------------------------------------------------------------------
 
+
 class TestLayerTypeClassification:
     def test_layer_type_constants(self):
         """Verify layer type constants are properly defined."""
@@ -185,6 +190,7 @@ class TestLayerTypeClassification:
 # ---------------------------------------------------------------------------
 # _choose_layer_axis_and_tol
 # ---------------------------------------------------------------------------
+
 
 class TestChooseLayerAxisAndTol:
     def test_default_axis(self):

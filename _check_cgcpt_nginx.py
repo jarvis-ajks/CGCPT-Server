@@ -2,7 +2,15 @@ import paramiko
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
@@ -10,6 +18,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 # Check the current CGCPT section in ai-website
 code, r = run("grep -n 'CGCPT' /etc/nginx/sites-available/ai-website")

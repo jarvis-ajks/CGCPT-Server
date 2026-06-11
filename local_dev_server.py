@@ -10,7 +10,7 @@ class Handler(SimpleHTTPRequestHandler):
         u = urlsplit(self.path)
         upstream_path = u.path
         if upstream_path.startswith("/CGCPT/api/"):
-            upstream_path = "/api/" + upstream_path[len("/CGCPT/api/"):]
+            upstream_path = "/api/" + upstream_path[len("/CGCPT/api/") :]
         upstream_url = urlunsplit(("http", "127.0.0.1:5000", upstream_path, u.query, ""))
 
         body = None
@@ -31,7 +31,12 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_response(resp.status)
                 for k, v in resp.headers.items():
                     lk = k.lower()
-                    if lk in ("transfer-encoding", "connection", "content-encoding", "content-length"):
+                    if lk in (
+                        "transfer-encoding",
+                        "connection",
+                        "content-encoding",
+                        "content-length",
+                    ):
                         continue
                     self.send_header(k, v)
                 data = resp.read()
@@ -50,7 +55,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def translate_path(self, path):
         if path == "/CGCPT" or path.startswith("/CGCPT/"):
-            path = path[len("/CGCPT"):] or "/"
+            path = path[len("/CGCPT") :] or "/"
         return super().translate_path(path)
 
     def do_GET(self):
@@ -80,7 +85,9 @@ class Handler(SimpleHTTPRequestHandler):
             if os.path.exists(index):
                 self.path = "/CGCPT/index.html"
         else:
-            if not os.path.exists(path) and (self.path == "/CGCPT" or self.path.startswith("/CGCPT/")):
+            if not os.path.exists(path) and (
+                self.path == "/CGCPT" or self.path.startswith("/CGCPT/")
+            ):
                 self.path = "/CGCPT/index.html"
         return super().send_head()
 

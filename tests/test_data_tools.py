@@ -42,6 +42,7 @@ class TestExportMaterialsJsonFormat:
             # data_tools imports SessionLocal from models inside the function
             with patch("models.SessionLocal", mock_session_local):
                 import data_tools
+
                 result = data_tools.export_materials(output_file)
                 assert result == output_file
                 assert output_file.exists()
@@ -81,6 +82,7 @@ class TestExportPrototypesJsonFormat:
             output_file = Path(tmpdir) / "prototypes_test.json"
             with patch("models.SessionLocal", mock_session_local):
                 import data_tools
+
                 result = data_tools.export_prototypes(output_file)
                 assert result == output_file
                 assert output_file.exists()

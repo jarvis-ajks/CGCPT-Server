@@ -2,7 +2,15 @@ import paramiko
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
@@ -10,6 +18,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 # The issue might be that the server has another server block that catches the request first
 # Check which server block is handling the request
@@ -35,9 +44,9 @@ code, r = run("rm -f /etc/nginx/sites-enabled/cgcpt 2>/dev/null")
 code, r = run("nginx -t 2>&1")
 print(f"\nAfter removing cgcpt site: {r}")
 
-if 'successful' in r:
+if "successful" in r:
     code, r = run("systemctl reload nginx 2>&1")
-    
+
     # Test again
     code, r = run("curl -sI http://localhost/CGCPT/assets/vendor-react-076Dd0Bx.js | head -15")
     print(f"\nAsset headers:\n{r}")

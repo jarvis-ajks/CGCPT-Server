@@ -2,7 +2,15 @@ import paramiko
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('118.31.164.41', username='root', password='ZS1029384756!', timeout=30, look_for_keys=False, allow_agent=False)
+client.connect(
+    "118.31.164.41",
+    username="root",
+    password="ZS1029384756!",
+    timeout=30,
+    look_for_keys=False,
+    allow_agent=False,
+)
+
 
 def run(cmd):
     stdin, stdout, stderr = client.exec_command(cmd, timeout=120)
@@ -10,6 +18,7 @@ def run(cmd):
     err = stderr.read().decode()
     code = stdout.channel.recv_exit_status()
     return code, (out + err).strip()
+
 
 # 1. Install fail2ban
 print("=== Installing fail2ban ===")
@@ -29,7 +38,7 @@ bantime = 3600
 """
 
 sftp = client.open_sftp()
-with sftp.open('/etc/fail2ban/jail.local', 'w') as f:
+with sftp.open("/etc/fail2ban/jail.local", "w") as f:
     f.write(fail2ban_local)
 sftp.close()
 print("Created /etc/fail2ban/jail.local")
@@ -53,8 +62,12 @@ ClientAliveCountMax 2
 """
 # Don't disable password auth yet since user needs it
 # Just add rate limiting
-code, r = run("grep -q 'MaxAuthTries 3' /etc/ssh/sshd_config || echo 'MaxAuthTries 3' >> /etc/ssh/sshd_config")
-code, r = run("grep -q 'LoginGraceTime 30' /etc/ssh/sshd_config || echo 'LoginGraceTime 30' >> /etc/ssh/sshd_config")
+code, r = run(
+    "grep -q 'MaxAuthTries 3' /etc/ssh/sshd_config || echo 'MaxAuthTries 3' >> /etc/ssh/sshd_config"
+)
+code, r = run(
+    "grep -q 'LoginGraceTime 30' /etc/ssh/sshd_config || echo 'LoginGraceTime 30' >> /etc/ssh/sshd_config"
+)
 print("SSH config updated")
 
 code, r = run("systemctl reload sshd 2>&1")
@@ -62,17 +75,20 @@ print(f"sshd reload: {r}")
 
 # 5. Install psutil for health check
 print("\n=== Installing psutil ===")
-code, r = run("/opt/CGCPT/venv/bin/pip install psutil -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com 2>&1 | tail -3")
+code, r = run(
+    "/opt/CGCPT/venv/bin/pip install psutil -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com 2>&1 | tail -3"
+)
 print(r)
 
 # 6. Deploy updated api_server.py
 print("\n=== Deploying updated backend ===")
-sftp.put(r'd:\Projects\CGCPT-Server\api_server.py', '/opt/CGCPT/api_server.py')
-sftp.put(r'd:\Projects\CGCPT-Server\stacking_analyzer.py', '/opt/CGCPT/stacking_analyzer.py')
+sftp.put(r"d:\Projects\CGCPT-Server\api_server.py", "/opt/CGCPT/api_server.py")
+sftp.put(r"d:\Projects\CGCPT-Server\stacking_analyzer.py", "/opt/CGCPT/stacking_analyzer.py")
 print("Backend files uploaded")
 
 # 7. Restart CGCPT service
 import time
+
 code, r = run("systemctl restart cgcpt 2>&1")
 print(f"CGCPT restart: {r}")
 time.sleep(3)
