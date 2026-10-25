@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, lazy, Suspense } from 'react'
 import {
   Upload,
   Brain,
@@ -17,6 +17,8 @@ import {
   Grid3X3,
   GitCompare,
 } from 'lucide-react'
+
+const CrystalScene = lazy(() => import('../components/mp/CrystalScene'))
 
 const API = '/CGCPT/api'
 
@@ -413,6 +415,15 @@ export default function StackingRecognizer() {
                   ))}
                 </div>
               </div>
+
+              {(uploadResult.cif_text || cifText) && (
+                <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 sm:p-6">
+                  <h2 className="text-lg font-semibold text-white mb-4">三维结构</h2>
+                  <Suspense fallback={<div className="h-64 sm:h-96 bg-gray-800/50 rounded-lg flex items-center justify-center"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>}>
+                    <CrystalScene cifText={uploadResult.cif_text || cifText} className="h-64 sm:h-96" />
+                  </Suspense>
+                </div>
+              )}
 
               {uploadResult.layer_analysis && uploadResult.layer_analysis.length > 0 && (
                 <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 sm:p-6">

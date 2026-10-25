@@ -10,9 +10,9 @@
 **CGCPT** (Crystallographic Classification of Perovskite Topology) 是一个晶体材料分类与拓扑分析平台。
 
 - **项目类型**: 全栈 Web 应用（React 前端 + Flask 后端）
-- **本地路径**: `D:\Projects\CGCPT-Server\`
+- **本地路径**: `C:\Users\21051\Projects\CGCPT-Server\`
 - **服务器**: 阿里云 ECS (Ubuntu)
-- **域名**: `cgcpt.ink` (通过 Cloudflare DNS)
+- **域名**: `zsxw.asia`（Caddy 自动 HTTPS，CGCPT 挂载在 `/CGCPT/`）
 
 ---
 
@@ -21,12 +21,13 @@
 ### 前端 (`web/`)
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| React | 18.x | UI 框架 |
-| TypeScript | 5.x | 类型安全 |
+| React | 19.x | UI 框架 |
+| TypeScript | 6.x | 类型安全 |
 | Vite | 8.x | 构建工具 |
 | Tailwind CSS v4 | 4.x | 样式框架 |
 | React Router v7 | 7.x | 路由管理 |
-| Three.js / R3F / Drei | latest | 3D 晶体可视化 |
+| @materialsproject/mp-react-components | 0.5.2 | 3D 晶体可视化（MP 官方 CrystalToolkitScene） |
+| crystal_toolkit (Python) | 2026.7.20 | 场景 JSON 生成 |
 | Recharts | 2.x | 图表库 (Dashboard) |
 | Lucide React | latest | 图标库 |
 
@@ -42,9 +43,9 @@
 ### 服务器基础设施
 | 组件 | 详情 |
 |------|------|
-| Nginx | 反向代理 + 静态文件服务 + Brotli/Gzip 压缩 |
+| Caddy | 反向代理 + 静态文件服务 + Brotli/Gzip 压缩 (`/opt/caddy/Caddyfile`, `projects.caddy`) |
 | Fail2ban | SSH 暴力破解防护 |
-| systemd | 服务管理 (cgcpt.service) |
+| systemd | 服务管理 (`projects-cgcpt`, `projects-cgcpt-worker`, `projects-cgcpt-scene`) |
 | Cloudflare | CDN + DNS (可选) |
 
 ---
@@ -55,47 +56,59 @@
 IP: 118.31.164.41
 用户: root
 SSH 方式: 密钥认证 (ed25519)
-私钥位置: D:\Projects\CGCPT-Server\id_ed25519
+私钥: ~/.ssh/win21051（Windows 上 ssh 配置别名 aliyun）
 ```
 
 ### SSH 连接方式
 ```bash
-# 密钥登录 (推荐)
-ssh -i D:\Projects\CGCPT-Server\id_ed25519 root@118.31.164.41
+# 密钥登录（仓库根目录不再存放私钥）
+ssh aliyun            # ~/.ssh/config 中 Host aliyun
+# 等价于: ssh -i ~/.ssh/win21051 root@118.31.164.41
 
 # SSH 配置: PermitRootLogin prohibit-password, MaxAuthTries=3, LoginGraceTime=30
-# 注意: 密码登录已被禁用，仅允许密钥认证 root
+# 注意: 密码登录已禁用（旧脚本里的明文密码已失效），仅允许密钥认证 root
 ```
 
 ### 关键路径 (服务器上)
 | 路径 | 说明 |
 |------|------|
-| `/opt/CGCPT/` | 项目根目录 |
-| `/opt/CGCPT/api_server.py` | Flask API 主文件 |
-| `/opt/CGCPT/gunicorn.conf.py` | Gunicorn 配置 |
-| `/opt/CGCPT/database/` | CIF 文件数据库 (~2460 个材料) |
-| `/opt/CGCPT/root/CGCPT/` | Nginx 静态文件目录 (前端构建产物) |
-| `/opt/CGCPT/watchdog.sh` | 健康看门狗脚本 |
-| `/opt/CGCPT/venv/` | Python 虚拟环境 |
-| `/etc/nginx/sites-available/ai-website` | Nginx 站点配置 |
-| `/etc/systemd/system/cgcpt.service` | Systemd 服务文件 |
+| `/opt/projects/cgcpt/` | 后端项目根目录 |
+| `/opt/projects/cgcpt/api_server.py` | Flask API 主文件 |
+| `/opt/projects/cgcpt/scene_service.py` | Materials Project 场景 JSON 服务 |
+| `/opt/projects/cgcpt/.venv/` | Python 虚拟环境 |
+| `/opt/projects/cgcpt/data/cgcpt.db` | SQLite 数据库 |
+| `/opt/projects/cgcpt/database/` | CIF 文件数据库 (~2460 个材料) |
+| `/opt/projects/cgcpt-web/` | 前端构建产物 (Caddy 静态目录) |
+| `/opt/caddy/projects.caddy` | CGCPT 路由 (Caddyfile 通过 `import projects` 引入) |
+| `/etc/systemd/system/projects-cgcpt*.service` | Systemd 服务文件 |
+| `/var/log/projects/cgcpt*.log` | 服务日志 |
 
 ### 端口分配
 | 端口 | 服务 | 监听地址 |
 |------|------|----------|
-| 80 | Nginx (HTTP) | 0.0.0.0 |
+| 80/443 | Caddy | 0.0.0.0 |
 | 22 | SSH | 0.0.0.0 |
-| 5001 | Gunicorn (API) | 127.0.0.1 |
-| 3306 | MySQL | 127.0.0.1 |
-| 6379 | Redis | 127.0.0.0 |
+| 18020 | Gunicorn (API) | 127.0.0.1 |
+| 18108 | Gunicorn (Crystal Toolkit scene) | 127.0.0.1 |
+| 3306 | MySQL (其他项目共用) | 127.0.0.1 |
+| 6379 | Redis | 127.0.0.1 |
+
+### 服务启停
+三个 unit 均为 `is-enabled=static`，**不会随系统启动**：
+
+```bash
+systemctl start projects-cgcpt projects-cgcpt-worker projects-cgcpt-scene
+systemctl stop projects-cgcpt-scene   # 释放 ~358MB 内存（3D 区域将不可用）
+```
 
 ---
 
 ## 四、项目结构
 
 ```
-D:\Projects\CGCPT-Server\
-├── api_server.py              # Flask API 主入口 (~1725 行)
+<repo>/
+├── api_server.py              # Flask API 主入口
+├── scene_service.py           # Materials Project 场景 JSON 服务
 ├── stack_main.py              # 结构生成核心模块 (LayeredXOGenerator)
 ├── stacking_analyzer.py       # 堆垛识别模块 (ML 模型训练/预测)
 ├── verify_topology.py         # 拓扑验证模块
@@ -112,17 +125,17 @@ D:\Projects\CGCPT-Server\
 │   │   │   ├── Header.tsx    # 页头
 │   │   │   ├── ErrorBoundary.tsx  # 错误边界
 │   │   │   ├── ElementPicker.tsx # 元素选择器
-│   │   │   └── three/
-│   │   │       ├── CrystalViewer.tsx  # 3D 晶体查看器 (懒加载!)
-│   │   │       └── elementData.ts    # 元素数据 (颜色/半径/信息)
+│   │   │   └── mp/
+│   │   │       ├── CrystalScene.tsx  # MP 场景查看器封装 (懒加载!)
+│   │   │       └── CrystalScene.css  # 上游组件所需样式
 │   │   └── pages/
 │   │       ├── Dashboard.tsx          # 仪表盘 (含周期表热力图)
 │   │       ├── MaterialsBrowser.tsx   # 材料浏览
-│   │       ├── MaterialDetail.tsx     # 材料详情 (含 CrystalViewer)
+│   │       ├── MaterialDetail.tsx     # 材料详情 (含 CrystalScene)
 │   │       ├── PrototypesBrowser.tsx  # 原型浏览
-│   │       ├── PrototypeDetail.tsx    # 原型详情 (含 CrystalViewer)
-│   │       ├── StructureGenerator.tsx # 结构生成器 (含 2 处 CrystalViewer)
-│   │       ├── StackingRecognizer.tsx # 堆垛识别
+│   │       ├── PrototypeDetail.tsx    # 原型详情 (含 CrystalScene)
+│   │       ├── StructureGenerator.tsx # 结构生成器 (含 2 处 CrystalScene)
+│   │       ├── StackingRecognizer.tsx # 堆垛识别 (上传结果含 CrystalScene)
 │   │       ├── MaterialsCompare.tsx   # 材料对比
 │   │       ├── ClassificationBrowser.tsx # 分类浏览
 │   │       ├── SearchResults.tsx      # 搜索结果
@@ -140,7 +153,6 @@ D:\Projects\CGCPT-Server\
 │   ├── Raw_Proto_*/           # 原始 CIF 文件 (按拓扑分组)
 │   └── Verified_Proto_*/      # 已验证 CIF 文件
 │
-├── id_ed25519                 # SSH 私钥 (重要!)
 └── *_*.py                     # 临时调试脚本 (可忽略)
 ```
 
@@ -164,7 +176,11 @@ const _preloadMap = {
 export function preloadRoute(path: string) { ... }
 ```
 
-**CrystalViewer 特殊处理**: 在 MaterialDetail、PrototypeDetail、StructureGenerator 中使用 `lazy(() => import(...))` + `<Suspense>` 包裹，Three.js (909KB) 仅在需要时加载。
+**CrystalScene（Materials Project 查看器）特殊处理**: 在 MaterialDetail、PrototypeDetail、StructureGenerator、StackingRecognizer 中使用 `lazy(() => import('../components/mp/CrystalScene'))` + `<Suspense>` 包裹，MP 组件与 three.js（~5.3MB chunk）仅在出现结构时加载。
+
+- 组件只负责取数：`POST /CGCPT/api/structure/scene`（`{cif_text}` 或 `{structure:{lattice,atoms}}`），把返回 JSON 原样交给 `<CrystalToolkitScene data={scene} />`
+- 场景尺寸由 `ResizeObserver` 量出容器最大正方形后通过 `sceneSize` 传入（上游组件固定方屏）
+- **不要启用 `StrictMode`**：MP 0.5.2 在开发模式的挂载探测中会在 `Scene.onDestroy` 抛错并清空组件树；`main.tsx` 已注明
 
 ---
 
@@ -179,9 +195,8 @@ build: {
     output: {
       manualChunks(id) {
         if (!id.includes('node_modules')) return
-        if (id.includes('three') || id.includes('@react-three')) return 'vendor-three'   // ~909KB
         if (id.includes('recharts')) return 'vendor-recharts'                              // ~364KB
-        if (id.includes('lucide-react')) return 'vendor-lucide'                           // ~22KB
+        if (id.includes('lucide-react')) return 'vendor-lucide'                            // ~22KB
         if (id.includes('react-dom') || id.includes('react-router')) return 'vendor-react' // ~224KB
         if (id.includes('/react/')) return 'vendor-react'
       },
@@ -189,22 +204,37 @@ build: {
   },
 },
 base: '/CGCPT/',
+define: { global: 'globalThis' },          // MP 及其 CommonJS 依赖需要
+resolve: {
+  dedupe: ['react', 'react-dom', 'react-is'], // 必须单份 React，否则 React #321
+  alias: [/* react / react-dom / jsx-runtime 指向 web/node_modules */],
+},
+server: {
+  proxy: {
+    '/CGCPT/api/structure/scene': { target: 'http://127.0.0.1:18108', rewrite: () => '/scene' },
+    '/CGCPT/api': { target: 'http://localhost:5000' },
+  },
+},
 ```
 
 **当前构建产物大小**:
-- `vendor-three-B9nyAaMl.js`: 909KB (懒加载)
-- `vendor-recharts-IKSEBQ13.js`: 364KB (Dashboard 使用时加载)
-- `vendor-react-BNPw1I5t.js`: 224KB
-- `StructureGenerator-B-KJaKgu.js`: 40KB
-- `CrystalViewer-9teT14lV.js`: 26KB (懒加载)
+- `CrystalScene-*.js`: ~5.3MB（MP + three.js，懒加载，按需下载）
+- `vendor-recharts-*.js`: 364KB（Dashboard 使用时加载）
+- `vendor-react-*.js`: 224KB
+- `StructureGenerator-*.js`: 40KB
 - 各页面 JS: 10-33KB each
-- CSS: 72KB
+- CSS: 77KB + `CrystalScene.css` 2KB
 
 ---
 
 ## 七、后端 API 端点一览
 
 ### 基础 URL: `/api/`
+
+> 例外：`POST /api/structure/scene` 由独立的 `scene_service.py` 提供（Caddy 直接转发到
+> `127.0.0.1:18108`，前缀改写为 `/scene`），不经过 `api_server.py`；
+> 该端点接受 `{"cif_text": "..."}` 或 `{"structure": {"lattice": {...}, "atoms": [...]}}`，
+> 返回 Materials Project 场景 JSON。
 
 | 方法 | 路径 | 缓存 | 说明 |
 |------|------|------|------|
@@ -247,115 +277,74 @@ def _cached_json(key, data, ttl=300):  # 写入缓存
 
 ---
 
-## 八、Nginx 配置要点
+## 八、Caddy 路由要点
 
-**配置文件**: `/etc/nginx/sites-available/ai-website`
+**配置文件**: `/opt/caddy/Caddyfile`（顶部 `import /opt/caddy/projects.caddy`）
 
-关键配置:
-```nginx
-server {
-    listen 80;
-    server_name cgcpt.ink www.cgcpt.ink;
+CGCPT 使用路径前缀挂载，静态文件与两个后端分离：
 
-    # 安全响应头
-    add_header X-Frame-Options SAMEORIGIN always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
+```caddyfile
+handle /CGCPT { redir * /CGCPT/ 308 }
 
-    location /CGCPT/ {
-        alias /opt/CGCPT/root/CGCPT/;
-        try_files $uri $uri/ /CGCPT/index.html;
-    }
+# Materials Project 场景服务（必须在 api 通配之前命中）
+handle /CGCPT/api/structure/scene {
+    rewrite * /scene
+    reverse_proxy 127.0.0.1:18108
+}
 
-    # Health 端点关闭 access log
-    location = /CGCPT/api/health {
-        proxy_pass http://127.0.0.1:5001/api/health;
-        access_log off;
-    }
+handle /CGCPT/api/* {
+    uri strip_prefix /CGCPT
+    reverse_proxy 127.0.0.1:18020
+}
 
-    location /CGCPT/api/ {
-        proxy_pass http://127.0.0.1:5001/api/;
-    }
-
-    # 静态资源长期缓存 + Brotli 压缩
-    location ~* \.(js|css|png|jpg|svg|ico|woff2?)$ {
-        expires 365d;
-        add_header Cache-Control "public, immutable";
-        add_header Pragma public;
-    }
-
-    # Brotli 压缩 (已安装 ngx_brotli 模块)
-    brotli on;
-    brotli_comp_level 6;
-    brotli_types text/plain text/css application/json application/javascript text/xml image/svg+xml;
+handle_path /CGCPT/* {
+    encode zstd gzip
+    root * /opt/projects/cgcpt-web
+    try_files {path} {path}/ /index.html
+    file_server
+    header /assets/* Cache-Control "public, max-age=31536000, immutable"
+    header /index.html Cache-Control "no-cache"
 }
 ```
 
-**注意**: 已删除冲突的 `/etc/nginx/conf.d/cgcpt.conf` 和 `/etc/nginx/sites-available/cgcpt`，这些文件曾导致 ai-website server block 被忽略。
+**注意**:
+- 小写 `/cgcpt/*` 同样配置了一份（旧链接兼容）
+- 历史上残留的 18 个 `handle /CGCPT…` 旧块（指向 18019/18020）已清理；不要再添加重复块，否则会抢在正确路由之前命中
+- 修改后必须 `caddy validate --config /opt/caddy/Caddyfile` 再 reload
 
 ---
 
 ## 九、Systemd 服务管理
 
-**服务文件**: `/etc/systemd/system/cgcpt.service`
-```ini
-[Unit]
-Description=CGCPT API Server
-After=network.target mysql.service redis.service
+**服务文件**: `/etc/systemd/system/projects-cgcpt{,-worker,-scene}.service`
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/CGCPT
-ExecStart=/opt/CGCPT/venv/bin/python3 -m gunicorn \
-    --config gunicorn.conf.py api_server:app
-Restart=always
-RestartSec=5
+| Unit | 作用 | 端口 | 内存上限 |
+|------|------|------|----------|
+| `projects-cgcpt` | Flask API (gunicorn, 1 worker × 2 threads) | 18020 | 448M |
+| `projects-cgcpt-worker` | Celery worker | - | 384M |
+| `projects-cgcpt-scene` | Crystal Toolkit 场景 JSON 服务 | 18108 | 560M |
 
-[Install]
-WantedBy=multi-user.target
-```
+三者均为 `Restart=no`、`is-enabled=static`，**不随系统启动**。
 
 常用命令:
 ```bash
-systemctl start/restart/status/reload cgcpt
-journalctl -u cgcpt -f  # 实时日志
+systemctl start projects-cgcpt projects-cgcpt-worker projects-cgcpt-scene
+systemctl restart projects-cgcpt projects-cgcpt-scene
+systemctl status projects-cgcpt-scene
+journalctl -u projects-cgcpt-scene -f
+tail -f /var/log/projects/cgcpt.log
 ```
 
-Gunicorn 配置 (`gunicorn.conf.py`):
-```python
-bind = '0.0.0.0:5001'
-workers = 2
-worker_class = 'gthread'
-threads = 2
-timeout = 120
-keepalive = 5
-accesslog = '-'    # stdout → journalctl
-errorlog = '-'
-loglevel = 'info'
-```
+宿主内存偏紧时，`projects-cgcpt-scene` 是唯一大头（导入 dash/plotly/matplotlib 所致），
+`systemctl stop projects-cgcpt-scene` 可释放约 358MB，3D 区域不可用、其余功能不受影响。
 
 ---
 
 ## 十、监控与自动化
 
-### 健康看门狗 (`/opt/CGCPT/watchdog.sh`)
-- 每 5 分钟执行 (crontab)
-- 检查 API 是否响应
-- 检查内存使用率 (>90% 自动重启)
-- 日志自动轮转 (>1MB 截断)
-
-### Logrotate 配置
-| 文件 | 轮转周期 | 保留天数 |
-|------|----------|----------|
-| `/etc/logrotate.d/cgcpt-nginx` | 每天 | 7天 (压缩) |
-| `/etc/logrotate.d/cgcpt-app` | 每天 | 5天 (copytruncate) |
-
-### Crontab (root)
-```
-*/5 * * * * /opt/CGCPT/watchdog.sh
-```
+- 目前**没有** watchdog/crontab 自动拉起；服务异常需手动 `systemctl start`
+- 日志写入 `/var/log/projects/cgcpt.log`、`cgcpt-worker.log`（systemd `append:` 重定向）
+- 健康检查：`GET /CGCPT/api/health`（API）、`GET /healthz`（场景服务，仅本机）
 
 ---
 
@@ -380,30 +369,56 @@ loglevel = 'info'
 
 ## 十二、部署流程
 
+生产环境用 Caddy + 三个 systemd 服务，仓库里的 `nginx/`、`docker-compose.yml` 仅作备选部署方式。
+
 ### 前端部署
 ```bash
-# 本地构建
+# 本地构建（产物在 web/dist）
 cd web && npm run build
 
-# 上传到服务器 (SFTP)
-# 清除旧文件:
-rm -rf /opt/CGCPT/root/CGCPT/assets/ /opt/CGCPT/root/CGCPT/index.html
-# 上传新文件:
-#   index.html → /opt/CGCPT/root/CGCPT/index.html
-#   assets/* → /opt/CGCPT/root/CGCPT/assets/
+# 上传到服务器静态目录
+rsync -av --delete web/dist/ aliyun:/opt/projects/cgcpt-web/
 ```
 
 ### 后端部署
 ```bash
-# 上传 api_server.py 到 /opt/CGCPT/api_server.py
-systemctl restart cgcpt
+# 源码目录
+rsync -av --exclude .venv --exclude node_modules api_server.py scene_service.py \
+    aliyun:/opt/projects/cgcpt/
+
+# 场景服务依赖只在首次/升级时安装
+ssh aliyun '/opt/projects/cgcpt/.venv/bin/pip install -r /opt/projects/cgcpt/requirements.txt'
+
+systemctl restart projects-cgcpt projects-cgcpt-scene
 ```
+
+### Caddy 路由（`/opt/caddy/projects.caddy`）
+```caddyfile
+handle /CGCPT/api/structure/scene {
+    rewrite * /scene
+    reverse_proxy 127.0.0.1:18108
+}
+handle /CGCPT/api/* {
+    uri strip_prefix /CGCPT
+    reverse_proxy 127.0.0.1:18020
+}
+handle_path /CGCPT/* {
+    encode zstd gzip
+    root * /opt/projects/cgcpt-web
+    try_files {path} {path}/ /index.html
+    file_server
+}
+```
+修改后必须 `caddy validate --config /opt/caddy/Caddyfile` 再 `systemctl reload caddy`。
 
 ### 验证部署
 ```bash
-curl -sI http://localhost/CGCPT/                    # 检查安全头
-curl -s http://localhost/CGCPT/api/health            # 检查 API
-curl -sI http://localhost/CGCPT/assets/vendor-three-*.js  # 检查缓存头
+curl -s  https://zsxw.asia/CGCPT/api/health               # API
+curl -s -X POST https://zsxw.asia/CGCPT/api/structure/scene \
+     -H 'Content-Type: application/json' \
+     -d '{"structure":{"lattice":{"a":4.6,"b":4.6,"c":4.6,"alpha":90,"beta":90,"gamma":90},"atoms":[{"element":"Cs","x":0,"y":0,"z":0}]}}'
+curl -sI http://localhost/CGCPT/                           # 前端
+curl -s  http://127.0.0.1:18108/healthz                    # 场景服务（服务器本机）
 ```
 
 ---
@@ -434,11 +449,11 @@ curl -sI http://localhost/CGCPT/assets/vendor-three-*.js  # 检查缓存头
 
 ## 十四、已知问题与技术债务
 
-1. **临时脚本过多**: 根目录有大量 `_*.py` 调试脚本，建议清理或移至 `_archive/`
-2. **密码可能泄露**: root 密码曾在多个脚本中出现，建议更换
-3. **MySQL/Redis**: 服务器上有 MySQL(3306) 和 Redis(6379)，但当前应用未使用它们（全部使用文件系统存储）
-4. **Cloudflare CDN**: 域名已接入 Cloudflare，但当前主要直接访问 IP 或使用非标准端口
-5. **HTTPS**: 当前仅 HTTP (80)，未配置 SSL 证书
+1. **临时脚本过多**: 根目录有大量 `_*.py` 调试脚本（含失效的明文密码与 `D:\` 路径），建议清理或移至 `_archive/`
+2. **密码已轮换**: 旧脚本里的 root 密码已失效，服务器仅允许密钥认证（`ssh aliyun`）
+3. **MySQL/Redis**: 服务器上有 MySQL(3306) 和 Redis(6379) 供其他项目使用；CGCPT 当前使用 SQLite（`/opt/projects/cgcpt/data/cgcpt.db`）
+4. **反向代理**: 生产使用 Caddy（`zsxw.asia/CGCPT/`），仓库内的 `nginx/` 配置仅作 Docker 部署备选
+5. **HTTPS**: Caddy 自动签发证书；内网回源/健康检查仍可能走 HTTP
 
 ---
 
@@ -447,26 +462,22 @@ curl -sI http://localhost/CGCPT/assets/vendor-three-*.js  # 检查缓存头
 ```bash
 # 前端
 cd web
-npm run dev          # 开发服务器 (proxy to :5001)
+npm run dev          # 开发服务器 (API → :5000, 场景 → :18108)
 npm run build        # 生产构建
 npm run preview      # 预览生产构建
 
-# 后端 (服务器上)
-cd /opt/CGCPT
-source venv/bin/activate
-python api_server.py  # 直接运行 (debug mode, port 5000)
-systemctl restart cgcpt  # 生产模式 (gunicorn, port 5001)
+# 后端 (本地)
+python api_server.py                 # 直接运行 (debug, port 5000)
+gunicorn scene_service:app -b 127.0.0.1:18108   # 场景服务
 
-# Nginx
-nginx -t             # 测试配置
-systemctl reload nginx  # 重载配置
-journalctl -u nginx -f  # 实时日志
+# 后端 (服务器)
+ssh aliyun
+systemctl restart projects-cgcpt projects-cgcpt-scene
+tail -f /var/log/projects/cgcpt.log
 
-# 日志
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
-journalctl -u cgcpt -f
-cat /var/log/cgcpt_watchdog.log
+# Caddy
+caddy validate --config /opt/caddy/Caddyfile
+systemctl reload caddy
 ```
 
 ---

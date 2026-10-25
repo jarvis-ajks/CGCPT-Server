@@ -102,10 +102,25 @@ npm install
 # 启动 Vite 开发服务器
 npm run dev
 # 运行在 http://localhost:5173
-# API 请求自动代理到 http://localhost:5000
+# /CGCPT/api 代理到 http://localhost:5000
+# /CGCPT/api/structure/scene 代理到 http://127.0.0.1:18108（场景服务）
 ```
 
-### 3. 可选服务
+### 3. 场景服务（Materials Project 查看器后端）
+
+```bash
+# 首次安装（crystal_toolkit 会带入 matplotlib/dash，体积较大）
+pip install "crystal-toolkit==2026.7.20"
+
+# 启动
+gunicorn --workers 1 --worker-class sync --bind 127.0.0.1:18108 \
+         --timeout 90 --graceful-timeout 10 scene_service:app
+
+# 冒烟
+curl -s http://127.0.0.1:18108/healthz
+```
+
+### 4. 可选服务
 
 ```bash
 # MySQL（如需数据库功能）
@@ -227,7 +242,35 @@ npm run build
 scp -r dist/* user@server:/opt/CGCPT/root/CGCPT/
 ```
 
-### 6. 配置 Nginx
+### 6. 配置场景服务（systemd）
+
+`/etc/systemd/system/cgcpt-scene.service`：
+
+```ini
+[Unit]
+Description=CGCPT Crystal Toolkit scene service (Materials Project viewer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cgcpt
+WorkingDirectory=/opt/CGCPT
+Environment=PYTHONUNBUFFERED=1
+Environment=MALLOC_ARENA_MAX=2
+ExecStart=/opt/CGCPT/venv/bin/gunicorn --workers 1 --worker-class sync \
+    --bind 127.0.0.1:18108 --timeout 90 --graceful-timeout 10 scene_service:app
+Restart=always
+RestartSec=5
+# crystal_toolkit 导入 dash/matplotlib，内存占用较高
+MemoryHigh=430M
+MemoryMax=560M
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 7. 配置 Nginx
 
 创建 `/etc/nginx/sites-available/cgcpt`：
 
@@ -246,6 +289,13 @@ server {
     location /CGCPT/ {
         alias /opt/CGCPT/root/CGCPT/;
         try_files $uri $uri/ /CGCPT/index.html;
+    }
+
+    # Materials Project 场景服务（必须放在 /CGCPT/api/ 之前）
+    location = /CGCPT/api/structure/scene {
+        proxy_pass http://127.0.0.1:18108/scene;
+        proxy_set_header Host $host;
+        proxy_read_timeout 90s;
     }
 
     # Health 端点关闭 access log
@@ -365,6 +415,12 @@ services:
     volumes:
       - ./database:/opt/CGCPT/database
       - ./models:/opt/CGCPT/models
+    restart: always
+
+  scene:
+    build: .
+    command: gunicorn --workers 1 --worker-class sync --bind 0.0.0.0:18108 --timeout 90 scene_service:app
+    mem_limit: 560m
     restart: always
 
   nginx:
@@ -666,7 +722,7 @@ http {
 
 ### 前端优化
 
-- **代码分割**：Three.js (~909KB) 懒加载
+- **代码分割**：Materials Project 查看器（含 three.js，~5.3MB）懒加载
 - **路由懒加载**：所有页面组件 `React.lazy()`
 - **鼠标悬停预加载**：Sidebar `onMouseEnter` 触发
 - **静态资源缓存**：365 天 + immutable

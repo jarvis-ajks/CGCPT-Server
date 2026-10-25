@@ -35,7 +35,7 @@ CGCPT 是一个面向钙钛矿型 (Perovskite-type) 晶体材料的**结构堆�
 - **CIF 文件解析** — 支持 pymatgen 解析与手动正则解析双模式，兼容各种 CIF 格式
 - **拓扑分类引擎** — 基于层状堆垛理论，自动识别 6 种拓扑原型
 - **结构生成器** — 可视化配置层模式、堆垛序列、旋转角度等参数，实时生成晶体结构
-- **3D 晶体可视化** — 基于 Three.js / React Three Fiber 的交互式 3D 晶体结构查看器
+- **3D 晶体可视化** — 使用 Materials Project 官方 `CrystalToolkitScene`（与 materialsproject.org 同一组件），场景由 `crystal_toolkit` 生成
 - **堆垛预测 (ML)** — 决策树 + 集成学习模型，支持训练、预测、批量预测
 - **自我迭代优化** — 误差分析驱动的自动特征工程 + 贝叶斯超参优化
 - **拓扑验证** — 基于 StructureMatcher 的结构匹配验证
@@ -59,7 +59,7 @@ CGCPT 是一个面向钙钛矿型 (Perovskite-type) 晶体材料的**结构堆�
 │  │  统计面板 │ │  材料浏览 │ │ 结构生成  │ │  堆垛识别/训练    │    │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘    │
 │  ┌──────────────────────────────────────────────────────────┐    │
-│  │         3D Crystal Viewer (Three.js / R3F / Drei)        │    │
+│  │   3D Crystal Viewer (Materials Project CrystalToolkitScene) │    │
 │  └──────────────────────────────────────────────────────────┘    │
 └──────────────────────────┬───────────────────────────────────────┘
                            │ HTTP/REST (Vite Dev Proxy / Nginx)
@@ -242,7 +242,7 @@ gunicorn --config gunicorn.conf.py api_server:app
 |------|--------|------|
 | `base` | `/CGCPT/` | 部署基础路径 |
 | `build.target` | `es2020` | 构建目标 |
-| `proxy` | `:5001` | API 代理目标 |
+| `proxy` | `:5000` (API) / `:18108` (scene) | 开发代理目标 |
 
 ---
 
@@ -251,6 +251,7 @@ gunicorn --config gunicorn.conf.py api_server:app
 ```
 CGCPT-Server/
 ├── api_server.py              # Flask API 主入口
+├── scene_service.py           # Materials Project 场景 JSON 服务 (crystal_toolkit)
 ├── stack_main.py              # 结构生成核心模块 (LayeredXOGenerator)
 ├── stacking_analyzer.py       # 堆垛识别模块 (ML 训练/预测)
 ├── verify_topology.py         # 拓扑验证模块
@@ -269,8 +270,9 @@ CGCPT-Server/
 │   │   ├── api/client.ts      # API 客户端
 │   │   ├── types/index.ts     # TypeScript 类型
 │   │   ├── components/        # 通用组件
-│   │   │   ├── three/
-│   │   │   │   └── CrystalViewer.tsx  # 3D 晶体查看器
+│   │   │   ├── mp/
+│   │   │   │   ├── CrystalScene.tsx   # MP 场景查看器封装
+│   │   │   │   └── CrystalScene.css
 │   │   │   └── ...
 │   │   └── pages/             # 页面组件
 │   │       ├── Dashboard.tsx

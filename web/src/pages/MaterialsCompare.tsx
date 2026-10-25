@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, X, GitCompare, Search, Loader2, Trash2, Download, BarChart3, LayoutGrid, List } from 'lucide-react'
 import { fetchMaterials, fetchMaterial } from '../api/client'
-import CrystalViewer from '../components/three/CrystalViewer'
+import CrystalScene from '../components/mp/CrystalScene'
 import type { Material, MaterialListItem } from '../types'
 
 const ELEMENT_COLORS: Record<string, string> = {
@@ -490,12 +490,10 @@ function MaterialComparisonCard({ material, onRemove }: { material: Material; on
 
       <div className="h-64 sm:h-96">
         {atoms.length > 0 && lattice ? (
-          <CrystalViewer
+          <CrystalScene
             atoms={atoms}
             lattice={lattice}
             className="h-full w-full"
-            showBonds
-            showElementInfo
           />
         ) : (
           <div className="h-full flex items-center justify-center text-gray-500 text-sm">

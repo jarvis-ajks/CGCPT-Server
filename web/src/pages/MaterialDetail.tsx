@@ -4,7 +4,7 @@ import { ArrowLeft, Atom, FileText, Download, X, Heart, GitCompare } from 'lucid
 import { fetchMaterial, fetchCifContent } from '../api/client'
 import type { Material } from '../types'
 
-const CrystalViewer = lazy(() => import('../components/three/CrystalViewer'))
+const CrystalScene = lazy(() => import('../components/mp/CrystalScene'))
 
 interface FavoriteItem {
   materialId: string
@@ -256,7 +256,7 @@ export default function MaterialDetail() {
             三维结构
           </h2>
           <Suspense fallback={<div className="h-64 sm:h-96 bg-gray-900 rounded-lg flex items-center justify-center"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>}>
-            <CrystalViewer atoms={atomSites} lattice={lattice} className="h-64 sm:h-96" showBonds showElementInfo />
+            <CrystalScene atoms={atomSites} lattice={lattice} className="h-64 sm:h-96" />
           </Suspense>
         </div>
 

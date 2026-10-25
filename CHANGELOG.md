@@ -7,6 +7,33 @@
 
 ---
 
+## [Unreleased]
+
+### 变更 / Changed
+
+- **三维结构查看器改用 Materials Project 官方组件**
+  - 前端删除自研 three.js 查看器（`web/src/components/three/`），改为
+    `@materialsproject/mp-react-components@0.5.2` 的 `CrystalToolkitScene`，
+    与 materialsproject.org 页面使用同一套渲染代码
+  - 新增 `web/src/components/mp/CrystalScene.tsx`：统一封装加载/错误/尺寸，
+    材料详情、原型详情、材料对比、结构生成器、堆垛识别上传分析全部接入
+  - 前端依赖移除 `three` / `@react-three/fiber` / `@react-three/drei`，
+    新增 `react-is@19`；`vite.config.ts` 增加 `global` 定义、React 单一实例
+    alias/dedupe（否则触发 React #321 invalid hook）
+  - `main.tsx` 关闭 `StrictMode`：MP 0.5.2 在开发模式的挂载探测中会在
+    `Scene.onDestroy` 抛错并清空组件树（生产构建不受影响）
+
+- **新增 Crystal Toolkit 场景服务**
+  - `scene_service.py`：`POST /scene`，接受 `cif_text` 或
+    `{structure: {lattice, atoms}}`，返回 `get_structure_scene(...).to_json()`
+  - 独立进程运行（gunicorn，`127.0.0.1:18108`）；前端请求
+    `/CGCPT/api/structure/scene` 由反向代理直连该服务
+  - 部署配置同步：`requirements.txt` 增加 `crystal-toolkit==2026.7.20`，
+    Dockerfile/compose 增加 `cgcpt-scene` 容器，nginx 增加 scene upstream 与路由，
+    Vite 开发代理与 `local_dev_server.py` 增加 scene 转发
+
+---
+
 ## [1.0.0] - 2026-06-05
 
 ### 新增 / Added

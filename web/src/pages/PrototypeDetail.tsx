@@ -8,7 +8,7 @@ import {
 import { fetchPrototype, fetchMaterial } from '../api/client'
 import type { Prototype, MaterialListItem, Material } from '../types'
 
-const CrystalViewer = lazy(() => import('../components/three/CrystalViewer'))
+const CrystalScene = lazy(() => import('../components/mp/CrystalScene'))
 
 interface FavoriteItem {
   materialId: string
@@ -386,12 +386,10 @@ export default function PrototypeDetail() {
               <span>{previewMaterial.space_group}</span>
             </div>
             <Suspense fallback={<div className="h-64 sm:h-96 bg-gray-900 rounded-lg flex items-center justify-center"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>}>
-              <CrystalViewer
+              <CrystalScene
                 atoms={previewMaterial.cif_data.atom_sites}
                 lattice={previewMaterial.cif_data.lattice}
                 className="h-64 sm:h-96"
-                showBonds
-                showElementInfo
               />
             </Suspense>
           </div>

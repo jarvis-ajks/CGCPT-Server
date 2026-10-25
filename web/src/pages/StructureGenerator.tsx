@@ -3,7 +3,7 @@ import { FlaskConical, Plus, Trash2, History, Save, Layers, Atom, Network, Downl
 import { generateStructure, generateFull, fetchLayerData, fetchCoordination } from '../api/client'
 import type { GenerateParams, GenerateResult, GenerateFullResult, LayerData, CoordinationEnvironment } from '../types'
 
-const CrystalViewer = lazy(() => import('../components/three/CrystalViewer'))
+const CrystalScene = lazy(() => import('../components/mp/CrystalScene'))
 
 const LAYER_MODES = ['XO', 'XO2', 'XO3', 'M6', 'M7', 'X', 'XBO3', 'BO3', 'XB3O6']
 
@@ -1085,11 +1085,10 @@ export default function StructureGenerator() {
               <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-5">
                 <h2 className="text-lg font-semibold text-white mb-4">三维预览</h2>
                 <Suspense fallback={<div className="h-96 bg-gray-900 rounded-lg flex items-center justify-center"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>}>
-                <CrystalViewer
+                <CrystalScene
                   atoms={result.atom_sites}
                   lattice={result.lattice}
                   className="h-96"
-                  showBonds
                 />
                 </Suspense>
               </div>
@@ -1104,12 +1103,10 @@ export default function StructureGenerator() {
               <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-5">
                 <h2 className="text-lg font-semibold text-white mb-4">三维结构</h2>
                 <Suspense fallback={<div className="h-96 bg-gray-900 rounded-lg flex items-center justify-center"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>}>
-                <CrystalViewer
+                <CrystalScene
                   atoms={fullResult.structure.atom_sites}
                   lattice={fullResult.structure.lattice}
                   className="h-96"
-                  showBonds
-                  initialMode="polyhedral"
                 />
                 </Suspense>
               </div>

@@ -22,6 +22,27 @@ services:
     networks:
       - cgcpt-network
 
+  cgcpt-scene:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cgcpt-scene
+    restart: unless-stopped
+    command:
+      - gunicorn
+      - --workers
+      - "1"
+      - --worker-class
+      - sync
+      - --bind
+      - 0.0.0.0:18108
+      - --timeout
+      - "90"
+      - scene_service:app
+    mem_limit: 560m
+    networks:
+      - cgcpt-network
+
   mysql:
     image: mysql:8.0
     container_name: cgcpt-mysql
@@ -54,6 +75,7 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - cgcpt-server
+      - cgcpt-scene
     networks:
       - cgcpt-network
 

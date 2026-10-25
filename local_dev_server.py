@@ -9,9 +9,13 @@ class Handler(SimpleHTTPRequestHandler):
     def _proxy_to_backend(self):
         u = urlsplit(self.path)
         upstream_path = u.path
-        if upstream_path.startswith("/CGCPT/api/"):
+        upstream_host = "127.0.0.1:5000"
+        if upstream_path.startswith("/CGCPT/api/structure/scene"):
+            upstream_host = "127.0.0.1:18108"
+            upstream_path = "/scene"
+        elif upstream_path.startswith("/CGCPT/api/"):
             upstream_path = "/api/" + upstream_path[len("/CGCPT/api/") :]
-        upstream_url = urlunsplit(("http", "127.0.0.1:5000", upstream_path, u.query, ""))
+        upstream_url = urlunsplit(("http", upstream_host, upstream_path, u.query, ""))
 
         body = None
         if self.command in ("POST", "PUT", "PATCH"):

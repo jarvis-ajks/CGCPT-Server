@@ -35,6 +35,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY api_server.py .
+COPY scene_service.py .
 COPY config.py .
 COPY cgcpt_plugin.py .
 COPY data_tools.py .
