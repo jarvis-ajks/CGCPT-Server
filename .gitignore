@@ -276,6 +276,10 @@ dist
 .cache/
 public
 
+# Vite static assets are source files, not build output.
+!web/public/
+!web/public/**
+
 # Storybook build outputs
 .out
 .storybook-out
