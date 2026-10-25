@@ -264,6 +264,12 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
     imported_protos = 0
     imported_mats = 0
     errors: list[str] = []
+    verified_material_ids = {
+        cif_path.stem
+        for proto_dir in db_dir.glob("Verified_Proto_*")
+        for cif_path in proto_dir.glob("*.cif")
+    }
+    seen_material_ids: set[str] = set()
 
     try:
         # 先禁用外键约束检查（MySQL 特定）
@@ -333,9 +339,14 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
             print(f"\n  处理目录 {proto_dir.name} (拓扑 {topology_id})...")
             for cif_path in sorted(proto_dir.glob("*.cif")):
                 material_id = cif_path.stem
+                if material_id in seen_material_ids:
+                    continue
+                if not is_verified and material_id in verified_material_ids:
+                    continue
                 try:
                     existing = db.query(Material).filter_by(id=material_id).first()
                     if existing:
+                        seen_material_ids.add(material_id)
                         continue
 
                     if parse_cif_file is not None:
@@ -374,6 +385,7 @@ def migrate_from_filesystem(db: Session, database_dir: Optional[str] = None) -> 
                     )
                     db.add(mat)
                     imported_mats += 1
+                    seen_material_ids.add(material_id)
 
                     # 每100个提交一次，避免内存堆积
                     if imported_mats % 100 == 0:
