@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CrystalToolkitScene } from '@materialsproject/mp-react-components'
 import type { Atom, Lattice } from '../../types'
+import './scene-vendor.css'
 import './CrystalScene.css'
 
 const SCENE_URL = '/CGCPT/api/structure/scene'
@@ -20,6 +21,12 @@ interface ScenePayload {
   structure?: { atoms: Atom[]; lattice: Lattice }
 }
 
+interface SceneResult {
+  key: string
+  scene?: unknown
+  error?: string
+}
+
 /**
  * Materials Project `CrystalToolkitScene` bound to the local `crystal_toolkit`
  * scene service. The payload is the exact JSON that materialsproject.org feeds
@@ -32,11 +39,13 @@ export default function CrystalScene({
   className,
   sceneSize,
 }: CrystalSceneProps) {
-  const [scene, setScene] = useState<unknown>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<SceneResult | null>(null)
   const [measuredSize, setMeasuredSize] = useState(0)
-  const requestId = useRef(0)
+  const [expanded, setExpanded] = useState(false)
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }))
   const containerRef = useRef<HTMLDivElement>(null)
 
   // The upstream viewer renders a fixed square; size it from the layout box.
@@ -51,7 +60,11 @@ export default function CrystalScene({
     return () => observer.disconnect()
   }, [])
 
-  const size = sceneSize ?? measuredSize
+  useEffect(() => {
+    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const payload = useMemo<ScenePayload | null>(() => {
     if (cifText?.trim()) return { cif_text: cifText }
@@ -63,16 +76,8 @@ export default function CrystalScene({
   const payloadKey = useMemo(() => (payload ? JSON.stringify(payload) : ''), [payload])
 
   useEffect(() => {
-    if (!payloadKey) {
-      setScene(null)
-      setError(null)
-      setLoading(false)
-      return
-    }
-    const id = ++requestId.current
+    if (!payloadKey) return
     const controller = new AbortController()
-    setLoading(true)
-    setError(null)
 
     fetch(SCENE_URL, {
       method: 'POST',
@@ -82,33 +87,56 @@ export default function CrystalScene({
     })
       .then(async (res) => {
         const body = await res.json().catch(() => null)
-        if (id !== requestId.current) return
         if (!res.ok || !body || body.error) {
           throw new Error(body?.error || `场景服务返回 HTTP ${res.status}`)
         }
-        setScene(body)
+        setResult({ key: payloadKey, scene: body })
       })
       .catch((err: unknown) => {
-        if (controller.signal.aborted || id !== requestId.current) return
-        setScene(null)
-        setError(err instanceof Error ? err.message : String(err))
-      })
-      .finally(() => {
-        if (id === requestId.current) setLoading(false)
+        if (controller.signal.aborted) return
+        setResult({ key: payloadKey, error: err instanceof Error ? err.message : String(err) })
       })
 
     return () => controller.abort()
   }, [payloadKey])
 
+  // Ignore results for a payload that is no longer rendered.
+  const current = result?.key === payloadKey ? result : null
+  const scene = current?.scene ?? null
+  const error = current?.error ?? null
+  const loading = Boolean(payloadKey) && !current
+
+  const size =
+    sceneSize ??
+    (expanded
+      ? Math.max(120, Math.floor(Math.min(viewport.width * 0.95, viewport.height * 0.95 - 48)))
+      : measuredSize)
+
+  // Follow the viewer's own fullscreen toggle (it flips `.is-active` on the
+  // wrapper it renders) so the square can grow to the modal instead of
+  // staying at the card size. Attach only once the viewer is actually mounted.
+  const viewerMounted = Boolean(scene) && size > 0
+  useEffect(() => {
+    if (!viewerMounted) return
+    const modal = containerRef.current?.querySelector('.mpc-expandable')
+    if (!modal) return
+    setExpanded(modal.classList.contains('is-active'))
+    const observer = new MutationObserver(() =>
+      setExpanded(modal.classList.contains('is-active')),
+    )
+    observer.observe(modal, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [viewerMounted])
+
   return (
     <div ref={containerRef} className={`cgcpt-scene ${className ?? ''}`}>
       {scene && size > 0 ? <CrystalToolkitScene data={scene} sceneSize={size} /> : null}
-      {loading && !scene && (
+      {loading && (
         <div className="cgcpt-scene-overlay">
           <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
-      {error && !scene && (
+      {error && (
         <div className="cgcpt-scene-overlay px-4 text-center text-sm text-red-300">
           三维结构加载失败：{error}
         </div>

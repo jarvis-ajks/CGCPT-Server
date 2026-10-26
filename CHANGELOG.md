@@ -23,6 +23,16 @@
   - `main.tsx` 关闭 `StrictMode`：MP 0.5.2 在开发模式的挂载探测中会在
     `Scene.onDestroy` 抛错并清空组件树（生产构建不受影响）
 
+- **查看器样式与 Materials Project 对齐**
+  - 上游组件不自带构建后的 CSS（dist 无样式），且按 Bulma 编写；新增
+    `web/scripts/build-scene-css.mjs` 把 Bulma 0.9.4 + 组件自带的
+    `.css`/`.less` 统一前缀 `.cgcpt-scene` 后生成
+    `web/src/components/mp/scene-vendor.css`（约 254KB，随查看器懒加载）
+  - 查看器区域改为白底、Bulma 字号/字体，按钮、下拉菜单、全屏弹层、
+    tooltip、设置面板均使用上游原生样式（此前是手写的近似样式）
+  - 全屏时按视口重新计算 `sceneSize`（约 `min(95vw, 95vh-48)`），关闭后还原
+  - 重新生成：`cd web && npm run build:scene-css`
+
 - **新增 Crystal Toolkit 场景服务**
   - `scene_service.py`：`POST /scene`，接受 `cif_text` 或
     `{structure: {lattice, atoms}}`，返回 `get_structure_scene(...).to_json()`

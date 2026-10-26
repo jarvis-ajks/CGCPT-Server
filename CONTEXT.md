@@ -179,7 +179,12 @@ export function preloadRoute(path: string) { ... }
 **CrystalScene（Materials Project 查看器）特殊处理**: 在 MaterialDetail、PrototypeDetail、StructureGenerator、StackingRecognizer 中使用 `lazy(() => import('../components/mp/CrystalScene'))` + `<Suspense>` 包裹，MP 组件与 three.js（~5.3MB chunk）仅在出现结构时加载。
 
 - 组件只负责取数：`POST /CGCPT/api/structure/scene`（`{cif_text}` 或 `{structure:{lattice,atoms}}`），把返回 JSON 原样交给 `<CrystalToolkitScene data={scene} />`
-- 场景尺寸由 `ResizeObserver` 量出容器最大正方形后通过 `sceneSize` 传入（上游组件固定方屏）
+- 场景尺寸由 `ResizeObserver` 量出容器最大正方形后通过 `sceneSize` 传入（上游组件固定方屏）；全屏时按视口重算
+- 样式：上游 `dist` 不含 CSS，按 Bulma 约定编写。`web/scripts/build-scene-css.mjs` 将
+  Bulma 0.9.4 + 组件 `.css`/`.less` 前缀 `.cgcpt-scene` 生成 `scene-vendor.css`，
+  因此按钮/下拉/全屏/tooltip 与上游一致，且不会污染 Tailwind UI；
+  修改后执行 `npm run build:scene-css`
+- 查看器区域为白底（与 MP 页面一致），画布本身透明（上游 `transparentBackground`）
 - **不要启用 `StrictMode`**：MP 0.5.2 在开发模式的挂载探测中会在 `Scene.onDestroy` 抛错并清空组件树；`main.tsx` 已注明
 
 ---
