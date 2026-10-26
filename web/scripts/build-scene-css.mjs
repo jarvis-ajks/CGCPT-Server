@@ -3,10 +3,10 @@
  *
  * The upstream package ships the scene components as `.css`/`.less` sources but
  * its published `dist` bundle contains no CSS, and the components are written
- * against Bulma (see the mp-react-components README). To reproduce the exact
- * rendering used by materialsproject.org / Crystal Toolkit without letting
- * Bulma's global styles leak into the CGCPT Tailwind UI, this script prefixes
- * every selector with `.cgcpt-scene` and writes a single vendored stylesheet.
+ * against Bulma (see the mp-react-components README). To use the upstream
+ * Crystal Toolkit styles without letting Bulma's global styles leak into
+ * the CGCPT Tailwind UI, this script prefixes every selector with
+ * `.cgcpt-scene` and writes a single vendored stylesheet.
  *
  * Usage (from web/): node scripts/build-scene-css.mjs
  */

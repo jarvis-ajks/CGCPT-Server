@@ -11,6 +11,19 @@
 
 ### 变更 / Changed
 
+- **可切换的 CIF 对比查看器**
+  - 保留 Materials Project 为默认模式，加入 MatterViz、Megane、CifVis、
+    crystvis-js、3Dmol.js、WEAS；切换时卸载旧实例，第三方模式明确标注非 MP 显示
+  - scene 服务新增 `output:"cif"`，使用同一 pymatgen 解析逻辑展开 P1 CIF，
+    规范分数坐标并使位点标签唯一，避免对称等价原子丢失或标签冲突；
+    原默认场景 JSON 协议不变
+  - 新增 Svelte 构建支持，前端要求 Node 24+，锁定依赖并将浮动的
+    `svelte-widgets` Git 来源改为 npm `1.10.0`
+  - 查看器样式与旧库全局事件隔离，构建发布引擎许可与 CifVis 源码地址
+  - MP 的尺寸观察依赖升级至 `use-resize-observer@9.1.0`，修复切换后的残留回调；
+    为 crystvis 的 `load-bmfont` 添加局部 Buffer 构建接线，不污染全局
+  - 一致性验收基准明确为公开 Crystal Toolkit 默认行为，不宣称官网当前页面逐像素一致
+
 - **三维结构查看器改用 Materials Project 官方组件**
   - 前端删除自研 three.js 查看器（`web/src/components/three/`），改为
     `@materialsproject/mp-react-components@0.5.2` 的 `CrystalToolkitScene`，

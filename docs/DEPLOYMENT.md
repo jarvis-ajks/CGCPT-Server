@@ -43,7 +43,7 @@
 | 软件 | 版本 | 用途 |
 |------|------|------|
 | Python | 3.10+ | 后端运行时 |
-| Node.js | 18+ | 前端构建 |
+| Node.js | 24+ | 前端构建（MatterViz / Svelte） |
 | MySQL | 8.0+ | 结构化数据存储（可选） |
 | Redis | 7.0+ | 任务队列 + 缓存（可选） |
 | Nginx | 1.24+ | 反向代理 + 静态文件 |
@@ -96,8 +96,8 @@ python api_server.py
 ```bash
 cd web
 
-# 安装依赖
-npm install
+# 使用锁定依赖（含 svelte-widgets 1.10.0 registry override）
+npm ci
 
 # 启动 Vite 开发服务器
 npm run dev
@@ -119,6 +119,16 @@ gunicorn --workers 1 --worker-class sync --bind 127.0.0.1:18108 \
 # 冒烟
 curl -s http://127.0.0.1:18108/healthz
 ```
+
+前端默认 MP 官方模式，六种比较模式仅在浏览器按需加载，不新增服务或端口。
+比较模式向既有 scene 路由增加 `output: "cif"` 取得官方 pymatgen 展开的 P1 CIF；
+因此需先部署兼容此参数的 `scene_service.py`，再切换新前端。
+`npm run build` 自动生成 `public/viewer-licenses.txt`，必须随静态资源发布。
+
+已有共用宿主只更新 CGCPT：备份场景文件与静态目录，重启
+`projects-cgcpt-scene` 后验证默认 scene 和 `output:"cif"`，再用 staging 目录
+替换 `/opt/projects/cgcpt-web`。路由和依赖不变时，不重启主 API、worker、
+Caddy、数据库或其他项目；保留旧静态目录用于回滚。
 
 ### 4. 可选服务
 

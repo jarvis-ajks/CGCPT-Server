@@ -35,7 +35,7 @@ CGCPT 是一个面向钙钛矿型 (Perovskite-type) 晶体材料的**结构堆�
 - **CIF 文件解析** — 支持 pymatgen 解析与手动正则解析双模式，兼容各种 CIF 格式
 - **拓扑分类引擎** — 基于层状堆垛理论，自动识别 6 种拓扑原型
 - **结构生成器** — 可视化配置层模式、堆垛序列、旋转角度等参数，实时生成晶体结构
-- **3D 晶体可视化** — 使用 Materials Project 官方 `CrystalToolkitScene`（与 materialsproject.org 同一组件），场景由 `crystal_toolkit` 生成
+- **3D 晶体可视化** — 默认使用 Materials Project 官方 `CrystalToolkitScene` 与公开 Crystal Toolkit 默认场景逻辑；支持切换 MatterViz、Megane、CifVis、crystvis-js、3Dmol.js、WEAS 对比模式
 - **堆垛预测 (ML)** — 决策树 + 集成学习模型，支持训练、预测、批量预测
 - **自我迭代优化** — 误差分析驱动的自动特征工程 + 贝叶斯超参优化
 - **拓扑验证** — 基于 StructureMatcher 的结构匹配验证
@@ -46,6 +46,27 @@ CGCPT 是一个面向钙钛矿型 (Perovskite-type) 晶体材料的**结构堆�
 - **数据库管理** — MySQL + SQLAlchemy ORM，支持文件系统迁移
 - **任务队列** — Celery + Redis 异步任务执行
 - **RESTful API** — 完整的 API 接口，支持缓存与分页
+
+### 晶体查看器与一致性边界
+
+所有结构查看入口均提供“显示引擎”选择，默认 Materials Project。MP 模式保留官方
+CrystalNN 成键、VESTA 配色、uniform 半径、周期镜像、晶胞、多面体和坐标轴，
+以及上游默认相机；标准画布上限为 500×500px，窄屏自适应。
+验收基准是公开 Crystal Toolkit 默认行为，**不承诺与 materialsproject.org 当前页面逐像素相同**。
+
+六个第三方模式均按需加载，切换时卸载旧引擎，不增加服务器常驻服务。
+比较前通过同一 `pymatgen` 管线将 CIF 的对称等价位置展开为 P1 CIF，保证输入的
+原子与晶格来源相同；各引擎自己的成键、配色和取景仍不同，不属于 MP 官方显示。
+Krystals 是 Android 应用，不嵌入网页；WEAS 使用浏览器底层库而非 Jupyter Widget。
+随构建发布 `/CGCPT/viewer-licenses.txt`，包含引擎许可及 CifVis 原始源码地址。
+
+前端使用 `npm ci` 安装锁定依赖；`svelte-widgets` 固定为 npm `1.10.0`，
+避免 MatterViz 上游浮动的 Git `main` 依赖。Svelte 样式注入查看器 Shadow DOM，
+旧式全局组件使用本地隔离文档，不修改应用全局主题。
+MP 仅将 `use-resize-observer` 覆盖为 `9.1.0`，修复旧版卸载时未取消订阅的问题，
+不修改官方渲染代码；crystvis 的 `load-bmfont` 仅注入模块局部 `Buffer`，
+不向 `window` 添加全局 polyfill。
+
 
 ---
 
@@ -93,7 +114,7 @@ CGCPT 是一个面向钙钛矿型 (Perovskite-type) 晶体材料的**结构堆�
 ### 环境要求 / Prerequisites
 
 - Python 3.10+
-- Node.js 18+
+- Node.js 24+（MatterViz / Svelte 构建需要）
 - MySQL 8.0+ (可选，默认使用文件系统)
 - Redis 7.0+ (可选，任务队列需要)
 

@@ -35,3 +35,15 @@ React
   Copyright (c) Meta Platforms, Inc. and affiliates.
   Licensed under the MIT License.
   https://github.com/facebook/react
+
+Browser crystal comparison viewers
+  MatterViz and svelte-widgets: MIT, https://github.com/janosh/matterviz
+  Megane: MIT, https://github.com/megane-labs/megane
+  CifVis: MPL-2.0, https://github.com/Niolon/cifvis
+    Unmodified 0.9.4 source: https://registry.npmjs.org/cifvis/-/cifvis-0.9.4.tgz
+    Academic attribution: Paul Niklas Ruth / CifVis.
+  crystvis-js: MIT, https://github.com/ccp-nc/crystvis-js
+  3Dmol.js: BSD-3-Clause, https://github.com/3dmol/3Dmol.js
+  WEAS: MIT, https://github.com/superstar54/weas
+  Complete upstream license texts are generated during the frontend build
+  and served at /CGCPT/viewer-licenses.txt.

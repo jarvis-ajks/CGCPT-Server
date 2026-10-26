@@ -5,24 +5,36 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/build-viewer-notices.mjs",
     "build": "tsc -b && vite build",
     "build:scene-css": "node scripts/build-scene-css.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ccp-nc/crystvis-js": "0.8.0",
     "@materialsproject/mp-react-components": "0.5.2",
     "@tailwindcss/vite": "^4.3.0",
+    "3dmol": "2.5.5",
+    "buffer": "6.0.3",
+    "cifvis": "0.9.4",
+    "dat.gui": "0.7.9",
     "lucide-react": "^1.14.0",
+    "matterviz": "0.8.0",
+    "megane-viewer": "0.18.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-is": "^19.2.6",
     "react-router-dom": "^7.15.0",
     "recharts": "^3.8.1",
-    "tailwindcss": "^4.3.0"
+    "svelte": "5.57.2",
+    "tailwindcss": "^4.3.0",
+    "three": "0.169.0",
+    "weas": "0.2.10"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -36,5 +48,11 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"
+  },
+  "overrides": {
+    "svelte-widgets": "1.10.0",
+    "@materialsproject/mp-react-components": {
+      "use-resize-observer": "9.1.0"
+    }
   }
 }

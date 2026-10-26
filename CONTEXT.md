@@ -190,8 +190,15 @@ export function preloadRoute(path: string) { ... }
   Bulma 0.9.4 + 组件 `.css`/`.less` 前缀 `.cgcpt-scene` 生成 `scene-vendor.css`，
   因此按钮/下拉/全屏/tooltip 与上游一致，且不会污染 Tailwind UI；
   修改后执行 `npm run build:scene-css`
-- 查看器区域为白底（与 MP 页面一致），画布本身透明（上游 `transparentBackground`）
+- 查看器区域为白底，画布本身透明（上游 `transparentBackground`）
 - **不要启用 `StrictMode`**：MP 0.5.2 在开发模式的挂载探测中会在 `Scene.onDestroy` 抛错并清空组件树；`main.tsx` 已注明
+- `ViewerSwitcher` 默认 MP，另有 MatterViz / Megane / CifVis / crystvis-js /
+  3Dmol.js / WEAS 六个独立对比引擎，均按需加载；不要将其称为 MP 一致模式。
+- 对比输入通过同一路由携带 `output:"cif"`，由 pymatgen 展开成 P1，唯一标签、
+  `[0,1)` 分数坐标；原始 CIF 和已有默认 scene 响应不变。
+- 前端构建需 Node 24+、Svelte 5 与 Vite Svelte 插件（`css:"injected"`），
+  `svelte-widgets` override 为 npm `1.10.0`，避免浮动 Git 依赖。
+- 验收基准是公开 Crystal Toolkit 默认行为；尚未验证 MP 官网当前页面逐像素一致。
 
 ---
 
@@ -245,7 +252,8 @@ server: {
 > 例外：`POST /api/structure/scene` 由独立的 `scene_service.py` 提供（Caddy 直接转发到
 > `127.0.0.1:18108`，前缀改写为 `/scene`），不经过 `api_server.py`；
 > 该端点接受 `{"cif_text": "..."}` 或 `{"structure": {"lattice": {...}, "atoms": [...]}}`，
-> 返回 Materials Project 场景 JSON。
+> 默认返回 Materials Project 场景 JSON；额外传入 `output:"cif"` 则返回
+> `{"cif_text":"...","site_count":N}`，供对比引擎使用，详见 `docs/API.md`。
 
 | 方法 | 路径 | 缓存 | 说明 |
 |------|------|------|------|

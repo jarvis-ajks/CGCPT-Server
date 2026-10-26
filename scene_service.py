@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request
 from pymatgen.analysis.graphs import StructureGraph
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.core import Lattice, Structure
-from pymatgen.io.cif import CifParser
+from pymatgen.io.cif import CifParser, CifWriter
 
 import crystal_toolkit.renderables.lattice  # noqa: F401  (patches Lattice._axes_from_lattice)
 import crystal_toolkit.renderables.structuregraph  # noqa: F401  (patches StructureGraph.get_scene)
@@ -125,7 +125,7 @@ def _structure_scene(structure: Structure) -> dict[str, Any]:
 
 @app.post("/scene")
 def scene():
-    """Return the Materials Project scene JSON for a CIF or a structure spec."""
+    """Return an official scene, or symmetry-expanded P1 CIF for comparison."""
     payload = request.get_json(force=True, silent=True) or {}
     cif_text = payload.get("cif_text") or ""
     spec = payload.get("structure") or {}
@@ -133,6 +133,13 @@ def scene():
         return jsonify({"error": "请提供CIF文本或结构数据"}), 400
     try:
         structure = _structure_from_cif(cif_text) if cif_text else _structure_from_spec(spec)
+        if payload.get("output") == "cif":
+            structure = _normalise_fractional_coords(structure)
+            structure.relabel_sites()
+            return jsonify({
+                "cif_text": str(CifWriter(structure, symprec=None, significant_figures=12)),
+                "site_count": len(structure),
+            })
         return jsonify(_structure_scene(structure))
     except Exception as exc:  # surfaced to the viewer as an error payload
         return jsonify({"error": str(exc)}), 400

@@ -2,11 +2,16 @@ import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+import { crystvisBufferPlugin } from './scripts/crystvis-buffer-plugin'
 
 const resolveFromRoot = (specifier: string) => fileURLToPath(new URL(`node_modules/${specifier}`, import.meta.url))
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [crystvisBufferPlugin(), react(), svelte({ configFile: false, compilerOptions: { css: 'injected' } }), tailwindcss()],
+  optimizeDeps: {
+    rolldownOptions: { plugins: [crystvisBufferPlugin()] },
+  },
   base: '/CGCPT/',
   define: {
     // @materialsproject/mp-react-components and its CommonJS deps expect the

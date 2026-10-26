@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CrystalToolkitScene } from '@materialsproject/mp-react-components'
 import type { Atom, Lattice } from '../../types'
+import ViewerSwitcher from '../viewers/ViewerSwitcher'
 import './scene-vendor.css'
 import './CrystalScene.css'
 
@@ -38,11 +39,11 @@ interface SceneResult {
 }
 
 /**
- * Materials Project `CrystalToolkitScene` bound to the local `crystal_toolkit`
- * scene service. The payload is the exact JSON that materialsproject.org feeds
- * its viewer, so the rendering code is upstream and untouched.
+ * Official Crystal Toolkit scene pipeline and upstream React renderer.
+ * The public defaults are the baseline, not an assertion of pixel parity
+ * with the current materialsproject.org website configuration.
  */
-export default function CrystalScene({
+function OfficialCrystalScene({
   cifText,
   atoms,
   lattice,
@@ -159,5 +160,13 @@ export default function CrystalScene({
         )}
       </div>
     </div>
+  )
+}
+
+export default function CrystalScene(props: CrystalSceneProps) {
+  return (
+    <ViewerSwitcher {...props}>
+      <OfficialCrystalScene {...props} className={undefined} />
+    </ViewerSwitcher>
   )
 }
