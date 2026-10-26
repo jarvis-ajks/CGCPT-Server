@@ -389,7 +389,7 @@ export default function PrototypeDetail() {
               <CrystalScene
                 atoms={previewMaterial.cif_data.atom_sites}
                 lattice={previewMaterial.cif_data.lattice}
-                className="h-64 sm:h-96"
+                className="w-full"
               />
             </Suspense>
           </div>

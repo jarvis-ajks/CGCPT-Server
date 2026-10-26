@@ -179,7 +179,13 @@ export function preloadRoute(path: string) { ... }
 **CrystalScene（Materials Project 查看器）特殊处理**: 在 MaterialDetail、PrototypeDetail、StructureGenerator、StackingRecognizer 中使用 `lazy(() => import('../components/mp/CrystalScene'))` + `<Suspense>` 包裹，MP 组件与 three.js（~5.3MB chunk）仅在出现结构时加载。
 
 - 组件只负责取数：`POST /CGCPT/api/structure/scene`（`{cif_text}` 或 `{structure:{lattice,atoms}}`），把返回 JSON 原样交给 `<CrystalToolkitScene data={scene} />`
-- 场景尺寸由 `ResizeObserver` 量出容器最大正方形后通过 `sceneSize` 传入（上游组件固定方屏）；全屏时按视口重算
+- 尺寸与官方 `StructureMoleculeComponent.layout(size="500px")` 对齐：白色方块最大
+  500×500（`min(容器宽度, 500)`，窄屏自适应），`sceneSize` 传像素值；全屏时按视口重算
+- 相机使用上游默认值（`cameraAxis='z'`, `cameraPosition='back'`, `defaultZoom=0.8`,
+  `zoomToFit2D=false`），并按官方 `default_scene_settings` 传
+  `{extractAxis: true, secondaryObjectView: false, renderer: 'webgl'}`
+- 场景内容 = 官方管线：CrystalNN 键连、VESTA 配色、uniform 半径、镜像原子、
+  compass axes、unit cell、polyhedra
 - 样式：上游 `dist` 不含 CSS，按 Bulma 约定编写。`web/scripts/build-scene-css.mjs` 将
   Bulma 0.9.4 + 组件 `.css`/`.less` 前缀 `.cgcpt-scene` 生成 `scene-vendor.css`，
   因此按钮/下拉/全屏/tooltip 与上游一致，且不会污染 Tailwind UI；

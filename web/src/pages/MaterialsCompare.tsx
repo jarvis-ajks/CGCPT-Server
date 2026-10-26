@@ -488,15 +488,15 @@ function MaterialComparisonCard({ material, onRemove }: { material: Material; on
         </button>
       </div>
 
-      <div className="h-64 sm:h-96">
+      <div className="w-full">
         {atoms.length > 0 && lattice ? (
           <CrystalScene
             atoms={atoms}
             lattice={lattice}
-            className="h-full w-full"
+            className="w-full"
           />
         ) : (
-          <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+          <div className="h-64 flex items-center justify-center text-gray-500 text-sm">
             暂无结构数据
           </div>
         )}

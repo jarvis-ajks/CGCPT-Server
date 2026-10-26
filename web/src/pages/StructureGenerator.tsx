@@ -1088,7 +1088,7 @@ export default function StructureGenerator() {
                 <CrystalScene
                   atoms={result.atom_sites}
                   lattice={result.lattice}
-                  className="h-96"
+                  className="w-full"
                 />
                 </Suspense>
               </div>
@@ -1106,7 +1106,7 @@ export default function StructureGenerator() {
                 <CrystalScene
                   atoms={fullResult.structure.atom_sites}
                   lattice={fullResult.structure.lattice}
-                  className="h-96"
+                  className="w-full"
                 />
                 </Suspense>
               </div>

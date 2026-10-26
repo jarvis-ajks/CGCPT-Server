@@ -256,7 +256,7 @@ export default function MaterialDetail() {
             三维结构
           </h2>
           <Suspense fallback={<div className="h-64 sm:h-96 bg-gray-900 rounded-lg flex items-center justify-center"><div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" /></div>}>
-            <CrystalScene atoms={atomSites} lattice={lattice} className="h-64 sm:h-96" />
+            <CrystalScene atoms={atomSites} lattice={lattice} className="w-full" />
           </Suspense>
         </div>
 

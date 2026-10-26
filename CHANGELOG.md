@@ -35,7 +35,15 @@
 
 - **新增 Crystal Toolkit 场景服务**
   - `scene_service.py`：`POST /scene`，接受 `cif_text` 或
-    `{structure: {lattice, atoms}}`，返回 `get_structure_scene(...).to_json()`
+    `{structure: {lattice, atoms}}`
+  - 场景生成与 `crystal_toolkit` 官方 `StructureMoleculeComponent` 完全一致：
+    `StructureGraph.from_local_env_strategy(..., CrystalNN())` 生成键连，
+    VESTA 配色 / uniform 半径 / 绘制周期镜像原子 / 追加 compass axes，
+    再 `scene.to_json()` —— 输出含 `atoms, bonds, polyhedra, magmoms,
+    unit_cell, axes`
+  - 前端按官方 `default_scene_settings` 传入
+    `{extractAxis: true, secondaryObjectView: false}`，compass 进入内嵌坐标轴，
+    不参与相机取景
   - 独立进程运行（gunicorn，`127.0.0.1:18108`）；前端请求
     `/CGCPT/api/structure/scene` 由反向代理直连该服务
   - 部署配置同步：`requirements.txt` 增加 `crystal-toolkit==2026.7.20`，

@@ -1,10 +1,19 @@
 /* Layout/overrides only - framework and component styles live in the
  * generated scene-vendor.css (Bulma + mp-react-components, scoped). */
 
+.cgcpt-scene-host {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 16rem;
+}
+
 .cgcpt-scene {
   position: relative;
-  width: 100%;
+  flex: none;
+  max-width: 100%;
   overflow: hidden;
+  background: #fff;
 }
 
 .cgcpt-scene .mpc-scene {
